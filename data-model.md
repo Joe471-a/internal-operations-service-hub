@@ -8,8 +8,15 @@ example: An IT staff member can handle an IT request from another employee and c
 
 So in short a department staff is an employee but not every employee is department staff.
 
+#### Department
+Represents the department of the company who receive the requests 
+
 #### Department staff
 Represents the organizational team (Department staff) responsible for handling requests.
+
+- Employee + role = Department staff 
+- (Employee + role)+ extra visibility = Department lead
+- Department staff + extra visibility = Department lead
 
 #### Request
 Represents a request submitted through the service hub.
@@ -83,7 +90,6 @@ accesss patterns
 - department_id + status --> requests
 - status --> requests
 - request_id --> request
-- request_id --> request history
 
 ### Indexes only when justified 
 -An index will be on department_id (IT, Finance, HR) can improve the retrieval of requests for a specific department especially as the number of requests grows. the database can use the index to go directly toward the relevant records instead of checking the entire table.
