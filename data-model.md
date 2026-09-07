@@ -86,10 +86,20 @@ important queries :
 - View request history
 
 accesss patterns
-- employee_id --> requests
+- employee_id --> requests  
+Used for the employee's "my requests" list.
+
 - department_id + status --> requests
+Used for a department's work queue (e.g. all Submitted IT requests). 
+
 - status --> requests
+Used for a system-wide / admin view (e.g. everything In Progress).
+
 - request_id --> request
+ Used when opening one request's detail page.
+
+- request_id --> request history
+Used to show a request's full timeline.
 
 ### Indexes only when justified 
 -An index will be on department_id (IT, Finance, HR) can improve the retrieval of requests for a specific department especially as the number of requests grows. the database can use the index to go directly toward the relevant records instead of checking the entire table.

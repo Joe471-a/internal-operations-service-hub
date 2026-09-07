@@ -38,7 +38,7 @@ A company-internal system for requesting and tracking help from departments such
 - Employees can see the status of their submitted requests regardless of the department handling them.
 - Department staff can handle request assigned to their department.
 - Department staff can see the current and previous request related to their department.
-- Requests must always display a visible status (e.g., Submitted,Assigned, In Progress, Completed, Denied).
+- Requests must always display a visible status (e.g., Submitted, Assigned, In Progress, Completed, Denied).
 
 ## Non-Functional Requirements
 ### Security
