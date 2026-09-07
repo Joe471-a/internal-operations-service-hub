@@ -5,7 +5,7 @@
 Employees can submit requests for help to the approriate department 
 
 ## Structure + Flow
-![Architecture Diagram](./images/architecture-diagram.png)
+![Architecture Diagram](../images/architecture-diagram.png)
 
 ### Components + Responsibilities
 

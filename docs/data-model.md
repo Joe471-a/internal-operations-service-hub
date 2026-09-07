@@ -22,7 +22,7 @@ Represents the organizational team (Department staff) responsible for handling r
 Represents a request submitted through the service hub.
 
 ### relationships + cardinality
-![Relations and cardinality](./images/relationsAndcardinality.png)
+![Relations and cardinality](../images/relationsAndcardinality.png)
 - 1- One Employee can submit many Requests.Each Request is submitted by one Employee.
 - 2- One Department can handle many Requests.Each Request is handled by one Department.
 - 3- One Department can have many Department Staff members.Each Department Staff member belongs to one Department.
@@ -37,7 +37,7 @@ Department staff are employees who belong to a department and are authorized to 
 ## Lifecycle + Rules 
 
 ### State transition
-![Lifecycle](./images/lifecycle.png)
+![Lifecycle](../images/lifecycle.png)
 Assigned: The request has been routed to the department responsible for handling it. This does not mean that the request is assigned to a specific department staff member.
 ### Invariants 
 - Every request must have a valid status.
