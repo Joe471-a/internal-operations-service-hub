@@ -1,0 +1,13 @@
+{
+  "name": "internal-operations-service-hub",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Internal Operations Service Hub — monorepo.",
+  "workspaces": ["backend"],
+  "scripts": {
+    "dev": "npm run dev --workspace backend",
+    "build": "npm run build --workspace backend",
+    "start": "npm run start --workspace backend",
+    "verify": "npm run verify --workspace backend"
+  }
+}

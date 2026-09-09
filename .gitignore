@@ -1,0 +1,9 @@
+# Downloaded libraries - recreated by `npm install`
+node_modules/
+
+# Compiled JavaScript output - recreated by `npm run build`
+dist/
+
+# Misc
+*.log
+.DS_Store
