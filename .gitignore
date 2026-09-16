@@ -4,6 +4,15 @@ node_modules/
 # Compiled JavaScript output - recreated by `npm run build`
 dist/
 
+# Local SQLite database file, created on your machine when you run the app.
+# The Prisma schema is committed on purpose - do not ignore it.
+*.db
+*.db-journal
+
+# Playwright's own output, written when the end-to-end test runs.
+test-results/
+playwright-report/
+
 # Misc
 *.log
 .DS_Store

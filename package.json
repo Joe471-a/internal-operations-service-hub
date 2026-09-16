@@ -3,11 +3,23 @@
   "version": "0.1.0",
   "private": true,
   "description": "Internal Operations Service Hub — monorepo.",
-  "workspaces": ["backend"],
+  "workspaces": ["backend", "frontend"],
   "scripts": {
-    "dev": "npm run dev --workspace backend",
+    "postinstall": "npm run prisma:generate --workspace backend",
+    "dev": "node -e \"const{spawn}=require('child_process');const p=require('path');const r=process.cwd();const b=spawn(process.execPath,[p.join(r,'node_modules/@nestjs/cli/bin/nest.js'),'start','--watch'],{cwd:p.join(r,'backend'),stdio:'inherit'});const f=spawn(process.execPath,[p.join(r,'node_modules/vite/bin/vite.js')],{cwd:p.join(r,'frontend'),stdio:'inherit'});function s(){b.kill();f.kill()}process.on('SIGINT',s);b.on('exit',s);f.on('exit',s)\"",
+    "dev:backend": "npm run dev --workspace backend",
+    "dev:frontend": "npm run dev --workspace frontend",
     "build": "npm run build --workspace backend",
     "start": "npm run start --workspace backend",
-    "verify": "npm run verify --workspace backend"
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:e2e": "playwright test"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.62.1",
+    "vitest": "4.1.11"
+  },
+  "overrides": {
+    "vite": "7.3.6"
   }
 }
