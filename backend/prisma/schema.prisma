@@ -1,0 +1,44 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./hub.db"
+}
+
+enum Department {
+  IT
+  HR
+  FINANCE
+}
+
+enum RequestStatus {
+  SUBMITTED
+  ASSIGNED
+  IN_PROGRESS
+  COMPLETED
+  DENIED
+}
+
+model ServiceRequest {
+  id            String         @id
+  title         String
+  description   String
+  department    Department
+  currentStatus RequestStatus
+  submittedBy   String
+  lastUpdated   String
+  history       RequestEvent[]
+}
+
+model RequestEvent {
+  id         Int            @id @default(autoincrement())
+  status     RequestStatus
+  occurredAt String
+  actorId    String
+  requestId  String
+  request    ServiceRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+
+  @@index([requestId])
+}

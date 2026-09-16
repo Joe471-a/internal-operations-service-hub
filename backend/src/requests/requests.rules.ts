@@ -4,8 +4,10 @@
  * Source of truth: docs/data-model.md ("Lifecycle + Rules")
  * and images/lifecycle.png.
  *
- * This file is pure logic: no HTTP, no storage, no NestJS. It answers one
- * question - "may a request move from status X to status Y?"
+ * This file is pure logic: no HTTP, no storage, no NestJS, no authorization.
+ * It answers one question - "may a request move from status X to status Y?"
+ * Whether this *actor* is allowed to ask is a separate question, answered in
+ * requests.service.ts with actors.ts - not here.
  */
 import { RequestStatus, ALL_STATUSES } from './requests.data';
 
@@ -14,15 +16,15 @@ import { RequestStatus, ALL_STATUSES } from './requests.data';
  * Completed and Denied have no outgoing transitions (they are terminal).
  */
 export const ALLOWED_TRANSITIONS: Record<RequestStatus, RequestStatus[]> = {
-  Submitted: ['Assigned', 'Denied'],
-  Assigned: ['In Progress'],
-  'In Progress': ['Completed'],
-  Completed: [],
-  Denied: [],
+  SUBMITTED: ['ASSIGNED', 'DENIED'],
+  ASSIGNED: ['IN_PROGRESS'],
+  IN_PROGRESS: ['COMPLETED'],
+  COMPLETED: [],
+  DENIED: [],
 };
 
 /** Statuses a request can never leave. */
-export const TERMINAL_STATUSES: RequestStatus[] = ['Completed', 'Denied'];
+export const TERMINAL_STATUSES: RequestStatus[] = ['COMPLETED', 'DENIED'];
 
 export function isTerminal(status: RequestStatus): boolean {
   return TERMINAL_STATUSES.includes(status);
