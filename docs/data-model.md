@@ -39,6 +39,19 @@ Department staff are employees who belong to a department and are authorized to 
 ### State transition
 ![Lifecycle](../images/lifecycle.png)
 Assigned: The request has been routed to the department responsible for handling it. This does not mean that the request is assigned to a specific department staff member.
+
+
+### What each status means
+
+| Status | Meaning | Set by |
+|---|---|---|
+| Submitted | Received by the system, not yet reviewed | Employee (on submit) |
+| Assigned | Department accepted it into its work queue, not started | Department lead |
+| In Progress | A staff member is actively working on it | Department staff |
+| Completed | Work finished | Department staff |
+| Denied | Department rejected it (only from Submitted) | Department lead |
+
+
 ### Invariants 
 - Every request must have a valid status.
 - A request cannot have an invalid or undefined state.
