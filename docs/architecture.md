@@ -21,12 +21,14 @@ Employees can submit requests for help to the approriate department
 - Creates requests.
 - Communicates with Persistent Storage.
 - Returns success or failure.
+- *(Added later, see `docs/extra.md`)* Verifies username and password, issues a signed session token, and checks that token on every request.
 
 ##### Persistent Storage
 - Stores employee and department information required by the system.
 - Help with checking authentication and authorization
 - Stores submitted requests.
 - Keeps successfully saved requests available.
+- *(Added later, see `docs/extra.md`)* Stores each user's credentials as a bcrypt-hashed password, never the plain password.
 
 ### Dependencies
 
@@ -35,7 +37,10 @@ Internal:
 - Backend depends on Persistent Storage.
 
 External:
-- None currently confirmed by the requirments
+- Groq (AI request classification, v0.4 - see `docs/week4-production-ai.md`). A
+  single outbound HTTP call from the Backend, not a new internal component -
+  it does not change the centralized architecture, only adds one thing the
+  Backend talks to besides Persistent Storage.
 
 External dependencies such as Keycloak or an external Identity Provider could be added to manage authentication and user identity. However, they are not included in the current architecture because no requirement confirms the need for an external authentication system. The current design remains simple and handles authentication internally until additional requirements justify this integration.
 
@@ -48,6 +53,7 @@ Information coming from the App / Web is not automatically trusted
 
 - If Persistent Storage is unavailable, the Backend cannot save or retrieve requests and returns a failure response to the App / Web.
 - If the Backend is unavailable, the App / Web cannot submit requests and informs the user that the operation failed.
+- If Groq is unavailable, the Backend does not fail the request - it creates it anyway, unverified (see `docs/week4-production-ai.md`'s Fail-open section). Unlike the other two, this dependency is non-critical by design.
 
 ### Scalability + Reliability
 The expected number of users and daily requests is currently unknown.

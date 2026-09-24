@@ -87,7 +87,6 @@ A company-internal system for requesting and tracking help from departments such
   
 
 ### Unknowns
-- Does the employee select the department when submitting a request, or should the system determine the department?
 - Can department staff view all requests related to their department, or only requests assigned specifically to them?
 - Can multiple employees work on the same request?
 - Can a request be reassigned or transferred between departments?
