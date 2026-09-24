@@ -1,9 +1,20 @@
 # Full-Stack Delivery (v0.3)
 
+> **Note:** this is the v0.3 contract as delivered. Real login was added
+> afterwards ([extra.md](extra.md)), and it changed some of the logic below:
+> callers are identified by a signed session token (`Authorization: Bearer`),
+> not the `x-hub-actor` header; the people list moved from `actors.ts` into a
+> `User` table (`actors.ts` now only holds the role rules); `GET /requests`
+> returns only what the signed-in person may see, with a `?view=` filter; and
+> `401` now also means wrong credentials or an expired session. Where this
+> document and extra.md disagree, extra.md is current. The test count here
+> (28) is as of v0.3; it grew in later versions - 60 with the v0.4 AI work,
+> 76 after login.
+
 One narrow, user-facing Service Request flow, end to end: React frontend,
 NestJS backend, real Prisma/SQLite persistence, behind the explicit API
 contract below. Builds directly on the Week 2 request-lifecycle milestone
-(see `docs/agentic-workflow.md`) - the state machine is unchanged, everything
+(see `docs/week2-agentic-workflow.md`) - the state machine is unchanged, everything
 around it is new.
 
 ## The flow
@@ -137,7 +148,7 @@ end-to-end test (`npm run test:e2e`):
 | `requests.rules.test.ts` | 7 | **The business-rule test.** The lifecycle state machine on its own - valid chain, terminal-state rejection, skipped/backwards-step rejection, malformed status rejection. |
 | `requests.service.test.ts` | 14 | **The authorization test (allow + deny).** Both rules above, against a fake Prisma that records writes - every denial is also checked to have written nothing. Plus the invalid-request-on-create cases. |
 | `requests.integration.test.ts` | 7 | **The backend+database integration test, and regression protection.** Real `PrismaService` against a disposable copy of the dev database: an assign is read back independently after the fact; a denied attempt leaves the row byte-for-byte unchanged; a "regression" block re-proves the exact Week-2 lifecycle claims (full valid chain, terminal 409, bad status 400, unknown id 404) now running through Prisma + authorization instead of the old in-memory array. |
-| `e2e/assign-request.spec.ts` | 1 | **The end-to-end test.** A real browser against the real running stack: an employee submits a request through the actual form, the HR Lead is refused assigning it (error banner shown, status unchanged on screen), the IT Lead then succeeds (status updates on screen). Proves the whole chain - UI, API, authorization, lifecycle rule, SQLite - is actually wired together, not just individually correct. |
+| `e2e/assign-request.spec.ts` | 1 | **The end-to-end test.** A real browser against the real running stack: an employee submits a request through the actual form, the HR Lead is refused assigning it (error banner shown, status unchanged on screen), the IT Lead then succeeds (status updates on screen). *(Since login was added, this test was rewritten - see extra.md: it signs in as each user, and the HR Lead now simply never sees the IT request, rather than being refused on it.)* Proves the whole chain - UI, API, authorization, lifecycle rule, SQLite - is actually wired together, not just individually correct. |
 
 ## Out of scope for this milestone
 

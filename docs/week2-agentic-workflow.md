@@ -1,8 +1,15 @@
 # Agentic Workflow
 
+> **Note:** this document records the Week 2 milestone as it was built - an
+> in-memory backend with no frontend, database or authentication. The project
+> has since grown past that (database and frontend in v0.3, AI intake in v0.4,
+> real login afterwards), so details here may no longer describe the running
+> app. See [README.md](../README.md) for the current state and
+> [extra.md](extra.md) for the login and visibility changes.
+
 ## 1. UNDERSTAND
 
-**Week 2 milestone - what was built then:** the request lifecycle - changing
+**Week 2 milestone - what was built:** the request lifecycle - changing
 a request's status, and rejecting changes the rules don't allow. In-memory
 only, no frontend, no database, no authentication.
 
@@ -16,54 +23,27 @@ only, no frontend, no database, no authentication.
 
 **Code:** `backend/src/requests/` (data, rules, service, controller, module)
 
-**v0.3 milestone - what was added on top:** the same lifecycle, now behind a
-real stack instead of a demo. A React frontend, Prisma/SQLite persistence
-(decisions/ADR-003.md), an actor-header authorization mechanism
-(`backend/src/requests/actors.ts`) with two real rules - only the lead of a
-request's own department may assign or deny it, and only that
-department's staff/lead (or whoever submitted it) may view its history - a
-rejected-on-purpose invalid request (missing title / bad department), an
-expected-on-purpose failure (acting on a terminal request), and all four
-kinds of test coverage plus one end-to-end test. See
-`docs/full-stack-delivery.md` for the full contract and test results.
-
-**Still not here:** real authentication (the `x-hub-actor` header is a
-teaching stand-in, not a login - see docs/architecture.md), CI/CD,
-deployment, monitoring. Out of scope per the assignment brief, not
-forgotten.
+**Non-goals:** frontend / real database / auth / full test suite are not
+required this week.
 
 
 ## 2. DIRECT
 
-How I steered the AI agent — the four points from the milestone, applied
-twice now (Week 2, then again for v0.3):
+How I steered the AI agent — the four points from the milestone:
 
-- **Bounded task + relevant context:** Week 2 was one behaviour, pointed at
-  the Week 1 docs. v0.3 was a much bigger brief, so before writing anything
-  the agent read this repo's own docs *and* a sibling reference project
-  (`shoplite-academy-2026`) to copy its conventions - file layout, the
-  actor-header auth pattern, the three-tier test style - rather than invent
-  new ones.
-- **Inspect before modifying:** same discipline both times - it read the
-  relevant files and showed its understanding before writing code.
-- **Plan before execution:** for v0.3 it entered plan mode, drafted a
-  14-step plan, and I made it implement and verify each step on its own
-  before starting the next, rather than doing the whole thing in one sweep.
-- **Approve · Redirect · Stop** (v0.3 examples):
-  - Approved: mirroring shoplite's file/test structure; the Prisma schema;
-    keeping read endpoints open while only gating writes.
-  - Redirected: the assign/deny buttons were first only shown to actors who
-    could plausibly use them - which meant the *denied* case could never
-    actually be clicked in the browser. Changed to always show the button
-    and let the backend refuse, matching shoplite's own pattern, so both
-    outcomes of the authorization rule are demonstrable by a real click.
-  - Redirected again: the history-view feature was first proposed open to
-    any staff/lead; redirected twice - once to scope it to the actor's own
-    department plus their own submissions, once to show real names instead
-    of raw actor ids.
-  - Stopped: on a frontend blank-screen bug and a couple of IDE-only
-    tangents, until each was root-caused with actual evidence (hashes,
-    screenshots, a live browser check) instead of assumption.
+- **Bounded task + relevant context:** one behaviour, pointed at the Week 1
+  docs.
+- **Inspect before modifying:** it read the relevant Week 1 files and showed
+  its understanding before writing any code.
+- **Plan before execution:** the agent broke the milestone into nine
+  sequential steps, each scoped narrowly, and paused after each one for
+  confirmation before starting the next.
+- **Approve · Redirect · Stop:**
+  - Approved: the project layout, the endpoint shapes.
+  - Redirected: to mirror a reference project's data/service/controller
+    structure, and to use an npm workspace.
+  - Stopped: one step was reverted in full and rebuilt one file at a time
+    for closer review.
 
 
 ## 3. PROVE
@@ -71,16 +51,15 @@ twice now (Week 2, then again for v0.3):
 **Claim:** valid status changes work, invalid ones are rejected, a Completed
 request cannot change.
 
-**Run:**
-```bash
-npm test
-```
+**Run (at the time):** `backend/verify.mjs`, via `npm run verify` - a manual
+script, not the automated test suite that exists today. It built the app,
+started it, and ran the cases below against the live server.
 
-**Result:** all checks pass - `backend/src/requests/requests.rules.test.ts` proves
-the claim directly, and `requests.integration.test.ts`'s "regression: the
-original request lifecycle still holds" block re-proves the same cases
-against the real database once the v0.3 milestone added Prisma and
-authorization on top.
+**Result:** all cases passed when run. The script has since been retired
+(replaced by real automated tests at the v0.3 milestone - see
+`docs/week3-full-stack-delivery.md`) and its exact console output was not
+preserved; the table below reflects what it checked and confirmed at the
+time, not a re-run of the original evidence.
 
 | Case | Expected | Actual |
 |---|---|---|
@@ -91,6 +70,4 @@ authorization on top.
 | Completed -> In Progress | 409 rejected (terminal) | 409 rejected (terminal) |
 | unknown id | 404 | 404 |
 
-No bugs found in the lifecycle logic. The original manual smoke script for
-this milestone (`backend/verify.mjs`) has since been retired - these became
-real automated tests instead of something to run and read by hand.
+No bugs found in the lifecycle logic.
