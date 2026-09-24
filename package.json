@@ -3,7 +3,10 @@
   "version": "0.1.0",
   "private": true,
   "description": "Internal Operations Service Hub — monorepo.",
-  "workspaces": ["backend", "frontend"],
+  "workspaces": [
+    "backend",
+    "frontend"
+  ],
   "scripts": {
     "postinstall": "npm run prisma:generate --workspace backend",
     "dev": "node -e \"const{spawn}=require('child_process');const p=require('path');const r=process.cwd();const b=spawn(process.execPath,[p.join(r,'node_modules/@nestjs/cli/bin/nest.js'),'start','--watch'],{cwd:p.join(r,'backend'),stdio:'inherit'});const f=spawn(process.execPath,[p.join(r,'node_modules/vite/bin/vite.js')],{cwd:p.join(r,'frontend'),stdio:'inherit'});function s(){b.kill();f.kill()}process.on('SIGINT',s);b.on('exit',s);f.on('exit',s)\"",
@@ -13,10 +16,13 @@
     "start": "npm run start --workspace backend",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "eval:classification": "vitest run --config vitest.eval.config.mts --reporter=verbose",
+    "test:all": "npm test && npm run test:e2e && npm run eval:classification"
   },
   "devDependencies": {
     "@playwright/test": "1.62.1",
+    "dotenv": "^18.0.2",
     "vitest": "4.1.11"
   },
   "overrides": {
