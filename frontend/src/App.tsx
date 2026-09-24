@@ -1,58 +1,39 @@
 import { FormEvent, useEffect, useState } from 'react';
 import {
-  ActorId,
-  Department,
-  ServiceRequest,
+  changePassword as changePasswordRequest,
   createRequest,
-  fetchAll,
+  Department,
   fetchById,
+  fetchVisible,
+  RequestView,
+  ServiceRequest,
   transitionRequest,
 } from './api/requests';
+import { LoginPage } from './components/LoginPage';
+import { RequestTable } from './components/RequestTable';
+import { Sidebar } from './components/Sidebar';
+import { StatsOverview } from './components/StatsOverview';
+import { SubmitPage } from './components/SubmitPage';
+import { Toast } from './components/Toast';
+import { TopBar } from './components/TopBar';
+import { getViewLabel, VIEWS_WITH_STATS } from './lib/constants';
+import { clearSession, getSession, setSession as persistSession, Session } from './lib/session';
+import { applyTheme, getInitialTheme, Theme } from './lib/theme';
 
-/**
- * Teaching-only actor picker. In a real hub you would be signed in and this
- * list would not exist - the screen would never get to choose who it is.
- *
- * Action buttons below are offered by *status*, not by whether this actor
- * could plausibly use them - the hub itself (actors.ts) is what actually
- * decides who is allowed to act, the same way shoplite always shows "Mark
- * as Delivered" and lets the backend refuse a customer. That is what makes
- * a refusal something you can click and see, not just something true in
- * theory. The "History" button follows the same idea: it is always there,
- * and an employee viewing a request that is not theirs finds that out from
- * a real refusal, not from a hidden button.
- */
-const ACTORS: { id: ActorId; label: string }[] = [
-  { id: 'emp-001', label: 'Dana Karam — Employee' },
-  { id: 'it-staff-001', label: 'Yara Fakhoury — IT Staff' },
-  { id: 'it-lead-001', label: 'Karim Rahal — IT Lead' },
-  { id: 'hr-lead-001', label: 'Sami Nassar — HR Lead' },
-  { id: 'finance-staff-001', label: 'Tarek Sleiman — Finance Staff' },
-  { id: 'finance-lead-001', label: 'Layla Haddad — Finance Lead' },
-];
-
-const DEPARTMENTS: Department[] = ['IT', 'HR', 'FINANCE'];
-
-function formatStatus(value: string): string {
-  const words = value.replace(/_/g, ' ').toLowerCase();
-  return words.charAt(0).toUpperCase() + words.slice(1);
-}
-
-function formatTime(value: string): string {
-  return new Date(value).toLocaleString();
-}
-
-/** The name the hub knows this actor id by, or the raw id if it's unknown. */
-function actorName(actorId: string): string {
-  return ACTORS.find((actor) => actor.id === actorId)?.label ?? actorId;
-}
+type Page = 'home' | 'submit';
 
 export default function App() {
-  const [actorId, setActorId] = useState<ActorId>('emp-001');
+  const [session, setSessionState] = useState<Session | null>(getSession);
+  const [page, setPage] = useState<Page>('home');
+  const [theme, setTheme] = useState<Theme>(getInitialTheme);
+  const [view, setView] = useState<RequestView>('all');
+  const [statusFilter, setStatusFilter] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
   const [requests, setRequests] = useState<ServiceRequest[]>([]);
   const [loading, setLoading] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
@@ -60,12 +41,18 @@ export default function App() {
 
   const [historyView, setHistoryView] = useState<ServiceRequest | null>(null);
 
-  async function load() {
+  /** A 401 already cleared storage (see api/requests.ts's readResponse) - this notices and bounces back to the login page. */
+  function syncSessionFromStorage() {
+    if (!getSession()) setSessionState(null);
+  }
+
+  async function load(forView: RequestView) {
     setLoading(true);
     setError(null);
     try {
-      setRequests(await fetchAll());
+      setRequests(await fetchVisible(forView));
     } catch (problem) {
+      syncSessionFromStorage();
       setError((problem as Error).message);
     } finally {
       setLoading(false);
@@ -73,19 +60,72 @@ export default function App() {
   }
 
   useEffect(() => {
-    load();
-  }, []);
+    if (!session) return;
+    load(view);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [session, view]);
+
+  useEffect(() => {
+    applyTheme(theme);
+  }, [theme]);
+
+  useEffect(() => {
+    if (!successMessage) return;
+    const timer = setTimeout(() => setSuccessMessage(null), 2600);
+    return () => clearTimeout(timer);
+  }, [successMessage]);
+
+  function handleLogin(newSession: Session) {
+    persistSession(newSession);
+    setSessionState(newSession);
+    setPage('home');
+    setView('all');
+    setStatusFilter(null);
+    setSearchQuery('');
+    setHistoryView(null);
+  }
+
+  function handleLogout() {
+    clearSession();
+    setSessionState(null);
+    setRequests([]);
+    setPage('home');
+  }
+
+  async function handleChangePassword(currentPassword: string, newPassword: string) {
+    await changePasswordRequest(currentPassword, newPassword);
+  }
+
+  function handleViewChange(nextView: RequestView) {
+    setPage('home');
+    setView(nextView);
+    setStatusFilter(null);
+    setSearchQuery('');
+  }
+
+  /** A stat card filters the table to that exact status within the view already open - stat cards only exist on views that fetch every status, so the count on the card matches what the table then shows. */
+  function handleSelectStatus(status: string) {
+    setStatusFilter(status);
+    setSearchQuery('');
+  }
+
+  function openSubmitPage() {
+    setPage('submit');
+  }
 
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
     setBusy(true);
     setError(null);
     try {
-      await createRequest(title, description, department, actorId);
+      const created = await createRequest(title, description, department);
       setTitle('');
       setDescription('');
-      await load();
+      setPage('home');
+      setSuccessMessage(`Request ${created.id} submitted`);
+      await load(view);
     } catch (problem) {
+      syncSessionFromStorage();
       setError((problem as Error).message);
     } finally {
       setBusy(false);
@@ -96,194 +136,100 @@ export default function App() {
     setBusy(true);
     setError(null);
     try {
-      await transitionRequest(requestId, to, actorId);
-      await load();
+      await transitionRequest(requestId, to);
+      await load(view);
     } catch (problem) {
       // A refusal must not wipe the list the user is looking at.
+      syncSessionFromStorage();
       setError((problem as Error).message);
     } finally {
       setBusy(false);
     }
   }
 
-  async function handleViewHistory(requestId: string) {
+  /** Collapses if this row is already expanded, otherwise fetches its history and expands it. */
+  async function handleToggleHistory(requestId: string) {
+    if (historyView?.id === requestId) {
+      setHistoryView(null);
+      return;
+    }
     setBusy(true);
     setError(null);
     try {
-      setHistoryView(await fetchById(requestId, actorId));
+      setHistoryView(await fetchById(requestId));
     } catch (problem) {
+      syncSessionFromStorage();
       setError((problem as Error).message);
     } finally {
       setBusy(false);
     }
   }
 
-  return (
-    <main className="page">
-      <header className="page-header">
-        <h1>Internal Operations Service Hub</h1>
-        <p className="tagline">Submit a request, or handle a department's queue.</p>
-      </header>
+  if (!session) {
+    return (
+      <LoginPage
+        onLogin={handleLogin}
+        theme={theme}
+        onToggleTheme={() => setTheme((current) => (current === 'dark' ? 'light' : 'dark'))}
+      />
+    );
+  }
 
-      <div className="actor-picker">
-        <label htmlFor="actor">Acting as</label>
-        <select id="actor" value={actorId} onChange={(event) => setActorId(event.target.value as ActorId)}>
-          {ACTORS.map((option) => (
-            <option key={option.id} value={option.id}>
-              {option.label}
-            </option>
-          ))}
-        </select>
+  return (
+    <div className="app-shell">
+      <Sidebar role={session.role} view={view} onViewChange={handleViewChange} onNewRequest={openSubmitPage} />
+
+      <div className="main">
+        <TopBar
+          breadcrumb={page === 'home' ? getViewLabel(session.role, view) : 'Submit a Request'}
+          session={session}
+          onLogout={handleLogout}
+          onChangePassword={handleChangePassword}
+          searchQuery={page === 'home' ? searchQuery : undefined}
+          onSearchChange={page === 'home' ? setSearchQuery : undefined}
+          theme={theme}
+          onToggleTheme={() => setTheme((current) => (current === 'dark' ? 'light' : 'dark'))}
+        />
+
+        <div className="content">
+          {error && <p className="error">{error}</p>}
+
+          {page === 'home' ? (
+            <>
+              {VIEWS_WITH_STATS.includes(view) && (
+                <StatsOverview requests={requests} onSelectStatus={handleSelectStatus} />
+              )}
+
+              <RequestTable
+                requests={requests}
+                loading={loading}
+                busy={busy}
+                searchQuery={searchQuery}
+                statusFilter={statusFilter}
+                onClearStatusFilter={() => setStatusFilter(null)}
+                expandedRequest={historyView}
+                onToggleHistory={handleToggleHistory}
+                onTransition={handleTransition}
+                actorId={session.actorId}
+              />
+            </>
+          ) : (
+            <SubmitPage
+              title={title}
+              description={description}
+              department={department}
+              busy={busy}
+              onTitleChange={setTitle}
+              onDescriptionChange={setDescription}
+              onDepartmentChange={setDepartment}
+              onSubmit={handleSubmit}
+              onCancel={() => setPage('home')}
+            />
+          )}
+        </div>
       </div>
 
-      {error && <p className="error">{error}</p>}
-
-      <section className="panel">
-        <h2>Submit a Request</h2>
-        <form className="submit-form" onSubmit={handleSubmit}>
-          <label htmlFor="title">Title</label>
-          <input
-            id="title"
-            value={title}
-            onChange={(event) => setTitle(event.target.value)}
-            placeholder="Laptop won't turn on"
-            required
-          />
-
-          <label htmlFor="description">Description</label>
-          <textarea
-            id="description"
-            rows={3}
-            value={description}
-            onChange={(event) => setDescription(event.target.value)}
-            placeholder="What do you need help with?"
-            required
-          />
-
-          <label htmlFor="department">Department</label>
-          <select id="department" value={department} onChange={(event) => setDepartment(event.target.value as Department)}>
-            {DEPARTMENTS.map((dept) => (
-              <option key={dept} value={dept}>
-                {dept}
-              </option>
-            ))}
-          </select>
-
-          <button type="submit" disabled={busy}>
-            {busy ? 'Submitting...' : 'Submit Request'}
-          </button>
-        </form>
-      </section>
-
-      {historyView && (
-        <section className="panel history-panel">
-          <div className="history-panel-header">
-            <h2>
-              History — {historyView.id}: {historyView.title}
-            </h2>
-            <button onClick={() => setHistoryView(null)}>Close</button>
-          </div>
-          <p className="hint">
-            {historyView.department} · submitted by {actorName(historyView.submittedBy)}
-          </p>
-          <ul className="history-timeline">
-            {historyView.history.map((event, index) => (
-              <li key={`${event.status}-${event.occurredAt}-${index}`}>
-                <span className={`status status-${event.status.toLowerCase()}`}>{formatStatus(event.status)}</span>
-                <span className="history-time">{formatTime(event.occurredAt)}</span>
-                <span className="history-actor">by {actorName(event.actorId)}</span>
-              </li>
-            ))}
-          </ul>
-        </section>
-      )}
-
-      <section className="panel">
-        <h2>All Requests</h2>
-
-        {loading ? (
-          <p className="hint">Loading...</p>
-        ) : requests.length === 0 ? (
-          <p className="hint">No requests yet.</p>
-        ) : (
-          <table className="requests-table">
-            <thead>
-              <tr>
-                <th>ID</th>
-                <th>Title</th>
-                <th>Dept</th>
-                <th>Submitted By</th>
-                <th>Status</th>
-                <th>Last Updated</th>
-                <th>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {requests.map((request) => (
-                <tr key={request.id}>
-                  <td>{request.id}</td>
-                  <td>{request.title}</td>
-                  <td>{request.department}</td>
-                  <td>{actorName(request.submittedBy)}</td>
-                  <td>
-                    <span className={`status status-${request.currentStatus.toLowerCase()}`}>
-                      {formatStatus(request.currentStatus)}
-                    </span>
-                  </td>
-                  <td>{formatTime(request.lastUpdated)}</td>
-                  <td className="actions">
-                    <button
-                      aria-label={`History ${request.id}`}
-                      className="history-button"
-                      disabled={busy}
-                      onClick={() => handleViewHistory(request.id)}
-                    >
-                      History
-                    </button>
-                    {request.currentStatus === 'SUBMITTED' && (
-                      <>
-                        <button
-                          aria-label={`Assign ${request.id}`}
-                          disabled={busy}
-                          onClick={() => handleTransition(request.id, 'ASSIGNED')}
-                        >
-                          Assign
-                        </button>
-                        <button
-                          aria-label={`Deny ${request.id}`}
-                          className="deny"
-                          disabled={busy}
-                          onClick={() => handleTransition(request.id, 'DENIED')}
-                        >
-                          Deny
-                        </button>
-                      </>
-                    )}
-                    {request.currentStatus === 'ASSIGNED' && (
-                      <button
-                        aria-label={`Start ${request.id}`}
-                        disabled={busy}
-                        onClick={() => handleTransition(request.id, 'IN_PROGRESS')}
-                      >
-                        Start
-                      </button>
-                    )}
-                    {request.currentStatus === 'IN_PROGRESS' && (
-                      <button
-                        aria-label={`Complete ${request.id}`}
-                        disabled={busy}
-                        onClick={() => handleTransition(request.id, 'COMPLETED')}
-                      >
-                        Complete
-                      </button>
-                    )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </section>
-    </main>
+      {successMessage && <Toast message={successMessage} />}
+    </div>
   );
 }
