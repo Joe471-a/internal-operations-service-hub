@@ -8,8 +8,10 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
+import { AiClassificationService } from '../ai-classification/ai-classification.service';
 import { PrismaService } from '../prisma.service';
-import { Actor, Permission, can, canViewHistory, inSameDepartment, resolveActor } from './actors';
+import { UsersService } from '../users/users.service';
+import { Actor, Permission, can, canViewHistory, inSameDepartment } from './actors';
 import { ALL_DEPARTMENTS, Department, RequestStatus, isDepartment } from './requests.data';
 import { checkTransition, isRequestStatus } from './requests.rules';
 
@@ -24,6 +26,7 @@ export interface RequestResult {
   title: string;
   description: string;
   department: Department;
+  aiVerified: boolean;
   currentStatus: RequestStatus;
   submittedBy: string;
   lastUpdated: string;
@@ -43,7 +46,11 @@ type RequestWithHistory = Prisma.ServiceRequestGetPayload<{ include: { history: 
  */
 @Injectable()
 export class RequestsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly aiClassification: AiClassificationService,
+    private readonly users: UsersService,
+  ) {}
 
   private toResult(record: RequestWithHistory): RequestResult {
     return {
@@ -51,6 +58,7 @@ export class RequestsService {
       title: record.title,
       description: record.description,
       department: record.department,
+      aiVerified: record.aiVerified,
       currentStatus: record.currentStatus,
       submittedBy: record.submittedBy,
       lastUpdated: record.lastUpdated,
@@ -64,35 +72,66 @@ export class RequestsService {
     };
   }
 
-  /** All requests (used for a system-wide view). */
-  async getAll(): Promise<RequestResult[]> {
+  /**
+   * Every request this actor may see: their own, plus - for staff/leads -
+   * their whole department. This is the same rule canViewHistory already
+   * uses per-request, applied here to the list instead of one id at a time,
+   * so there is one definition of "may this actor see this request" rather
+   * than two that could quietly drift apart.
+   *
+   * `view` narrows further into the filter tabs the UI offers on top of
+   * that base scope:
+   *  - "mine"   - just what this actor submitted themselves.
+   *  - "handle" - department requests currently Assigned or In Progress
+   *               (what `request:handle` lets staff/leads move forward).
+   *  - "assign" - department requests currently Submitted (what
+   *               `request:assign`/`request:deny` lets a lead act on).
+   *  - omitted or "all" - the full base scope, no narrowing.
+   * An employee has no department, so "handle"/"assign" are always empty
+   * for them rather than an error.
+   */
+  async getVisible(actorId: string | undefined, view?: string): Promise<RequestResult[]> {
+    const actor = await this.requireActor(actorId);
+
+    const baseScope: Prisma.ServiceRequestWhereInput =
+      actor.role === 'employee'
+        ? { submittedBy: actor.id }
+        : { OR: [{ submittedBy: actor.id }, { department: actor.department! }] };
+
+    const narrower = this.viewFilter(actor, view);
+    if (narrower === 'EMPTY') {
+      return [];
+    }
+
     const requests = await this.prisma.serviceRequest.findMany({
+      where: narrower ? { AND: [baseScope, narrower] } : baseScope,
       include: { history: true },
       orderBy: { id: 'asc' },
     });
     return requests.map((request) => this.toResult(request));
   }
 
-  /**
-   * A department's work queue - the access pattern from data-model.md
-   * ("department_id + status -> requests"). Either filter may be omitted.
-   */
-  async getQueue(department?: string, status?: string): Promise<RequestResult[]> {
-    if (department !== undefined && !isDepartment(department)) {
-      throw new BadRequestException(
-        `"${department}" is not a valid department. Use one of: ${ALL_DEPARTMENTS.join(', ')}.`,
-      );
-    }
-    if (status !== undefined && !isRequestStatus(status)) {
-      throw new BadRequestException(`"${status}" is not a valid request status.`);
+  private viewFilter(
+    actor: Actor,
+    view: string | undefined,
+  ): Prisma.ServiceRequestWhereInput | 'EMPTY' | null {
+    if (view === undefined || view === 'all') return null;
+    if (view === 'mine') return { submittedBy: actor.id };
+
+    if (view === 'handle') {
+      if (!actor.department) return 'EMPTY';
+      return {
+        department: actor.department,
+        currentStatus: { in: [RequestStatus.ASSIGNED, RequestStatus.IN_PROGRESS] },
+      };
     }
 
-    const requests = await this.prisma.serviceRequest.findMany({
-      where: { department, currentStatus: status },
-      include: { history: true },
-      orderBy: { id: 'asc' },
-    });
-    return requests.map((request) => this.toResult(request));
+    if (view === 'assign') {
+      if (!actor.department) return 'EMPTY';
+      return { department: actor.department, currentStatus: RequestStatus.SUBMITTED };
+    }
+
+    throw new BadRequestException(`"${view}" is not a valid view. Use one of: all, mine, handle, assign.`);
   }
 
   /**
@@ -102,7 +141,7 @@ export class RequestsService {
    *    that is not theirs - see actors.ts's canViewHistory)
    */
   async getById(id: string, actorId: string | undefined): Promise<RequestResult | null> {
-    const actor = this.requireActor(actorId);
+    const actor = await this.requireActor(actorId);
 
     const request = await this.prisma.serviceRequest.findUnique({
       where: { id },
@@ -128,7 +167,7 @@ export class RequestsService {
     department: unknown,
     actorId: string | undefined,
   ): Promise<RequestResult> {
-    const actor = this.requireActor(actorId);
+    const actor = await this.requireActor(actorId);
     if (!can(actor, 'request:submit')) {
       throw new ForbiddenException(`${actor.displayName} may not submit requests.`);
     }
@@ -145,13 +184,23 @@ export class RequestsService {
       );
     }
 
+    const trimmedTitle = title.trim();
+    const trimmedDescription = description.trim();
+    const { aiVerified } = await this.aiClassification.checkIntake({
+      title: trimmedTitle,
+      description: trimmedDescription,
+      department,
+      actor,
+    });
+
     const now = new Date().toISOString();
     const record = await this.prisma.serviceRequest.create({
       data: {
         id: `REQ-${randomUUID().slice(0, 8)}`,
-        title: title.trim(),
-        description: description.trim(),
+        title: trimmedTitle,
+        description: trimmedDescription,
         department,
+        aiVerified,
         currentStatus: RequestStatus.SUBMITTED,
         submittedBy: actor.id,
         lastUpdated: now,
@@ -174,7 +223,7 @@ export class RequestsService {
    *  - illegal transition          -> 409 Conflict (terminal state or undefined transition)
    */
   async transition(id: string, to: unknown, actorId: string | undefined): Promise<RequestResult> {
-    const actor = this.requireActor(actorId);
+    const actor = await this.requireActor(actorId);
 
     const request = await this.prisma.serviceRequest.findUnique({ where: { id } });
     if (!request) {
@@ -208,8 +257,8 @@ export class RequestsService {
     return this.toResult(updated);
   }
 
-  private requireActor(actorId: string | undefined): Actor {
-    const actor = resolveActor(actorId);
+  private async requireActor(actorId: string | undefined): Promise<Actor> {
+    const actor = await this.users.resolveActor(actorId);
     if (!actor) {
       throw new UnauthorizedException('The hub does not know who is making this request.');
     }

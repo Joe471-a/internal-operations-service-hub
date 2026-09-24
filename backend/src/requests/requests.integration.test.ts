@@ -2,7 +2,9 @@ import { copyFileSync, existsSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { NotFoundException } from '@nestjs/common';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { AiClassificationService } from '../ai-classification/ai-classification.service';
 import { PrismaService } from '../prisma.service';
+import { UsersService } from '../users/users.service';
 import { RequestsService } from './requests.service';
 
 // The fixtures the app itself is seeded from — one definition, so a test can
@@ -43,7 +45,13 @@ beforeAll(() => {
   // An absolute file: path on purpose - a relative one would be read as
   // relative to the Prisma schema, not to this test.
   prisma = new PrismaService({ datasourceUrl: `file:${TEST_DB}` });
-  service = new RequestsService(prisma);
+  // This suite exercises transition(), not create(), so the classifier is
+  // never actually called - a stub just needs to satisfy the constructor.
+  const stubAiClassification = { checkIntake: async () => ({ aiVerified: true }) };
+  // A real UsersService against the same test database - the six seeded
+  // users are reference data this suite never mutates, so no reset needed.
+  const users = new UsersService(prisma);
+  service = new RequestsService(prisma, stubAiClassification as unknown as AiClassificationService, users);
 });
 
 afterAll(async () => {
