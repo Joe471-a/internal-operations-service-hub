@@ -2,7 +2,7 @@
 // see @types/node here; Playwright runs it fine regardless, this only
 // silences the checker.
 import { execFileSync } from 'node:child_process';
-import { expect, test } from '@playwright/test';
+import { expect, Page, test } from '@playwright/test';
 
 /**
  * Internal Operations Service Hub — the whole thing, once.
@@ -26,10 +26,25 @@ test.beforeAll(() => {
   });
 });
 
+async function logIn(page: Page, username: string, password: string) {
+  await page.getByLabel('Username').fill(username);
+  await page.getByLabel('Password', { exact: true }).fill(password);
+  await page.getByRole('button', { name: 'Sign in' }).click();
+}
+
+async function logOut(page: Page) {
+  await page.locator('.session-chip').click();
+  await page.getByRole('button', { name: 'Log out' }).click();
+  await expect(page.getByRole('heading', { name: 'Welcome back' })).toBeVisible();
+}
+
 test('an employee submits a request, and only the right department lead may assign it', async ({ page }) => {
   await page.goto('/');
 
-  // --- An employee submits a new IT request, through the real form -------
+  // --- An employee signs in and submits a new IT request, through the real form
+  await logIn(page, 'dana', 'dana123');
+  await page.getByRole('button', { name: 'New Request' }).click();
+
   const title = 'Printer is jammed';
   await page.getByLabel('Title').fill(title);
   await page.getByLabel('Description').fill('The 3rd floor printer is jammed and needs a technician.');
@@ -42,19 +57,19 @@ test('an employee submits a request, and only the right department lead may assi
 
   const requestId = (await row.locator('td').first().innerText()).trim();
 
-  // --- HR Lead has no part in an IT request - refused ---------------------
-  await page.getByLabel('Acting as').selectOption('hr-lead-001');
-  await row.getByRole('button', { name: `Assign ${requestId}` }).click();
-
-  await expect(page.locator('.error')).toContainText('may not move a IT request');
-  // The refusal must not cost the user what they were already looking at.
-  await expect(row.locator('.status')).toContainText('Submitted');
+  // --- HR Lead has no part in an IT request - it never even appears -------
+  await logOut(page);
+  await logIn(page, 'sami', 'sami123');
+  await expect(page.locator('tr', { hasText: 'REQ-1005' })).toBeVisible();
+  await expect(page.locator('tr', { hasText: title })).toHaveCount(0);
 
   // --- IT Lead succeeds -----------------------------------------------------
-  await page.getByLabel('Acting as').selectOption('it-lead-001');
-  await row.getByRole('button', { name: `Assign ${requestId}` }).click();
+  await logOut(page);
+  await logIn(page, 'karim', 'karim123');
+  const itRow = page.locator('tr', { hasText: title });
+  await itRow.getByRole('button', { name: `Assign ${requestId}` }).click();
 
-  // This text only appears if the browser, the API, the authorization rule,
-  // the lifecycle rule and SQLite all agreed.
-  await expect(row.locator('.status')).toContainText('Assigned');
+  // This text only appears if the browser, the API, the login, the
+  // authorization rule, the lifecycle rule and SQLite all agreed.
+  await expect(itRow.locator('.status')).toContainText('Assigned');
 });
