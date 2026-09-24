@@ -13,6 +13,10 @@ dist/
 test-results/
 playwright-report/
 
+# Local secrets - never committed. Copy backend/.env.example to get started.
+.env
+backend/.env
+
 # Misc
 *.log
 .DS_Store
