@@ -1,9 +1,11 @@
 const { PrismaClient } = require('@prisma/client');
 const { resetFixtures } = require('./fixtures');
+const { resetUsers } = require('./users');
 
 const prisma = new PrismaClient();
 
 async function main() {
+  await resetUsers(prisma);
   await resetFixtures(prisma);
 }
 

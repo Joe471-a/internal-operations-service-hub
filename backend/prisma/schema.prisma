@@ -26,6 +26,7 @@ model ServiceRequest {
   title         String
   description   String
   department    Department
+  aiVerified    Boolean        @default(false)
   currentStatus RequestStatus
   submittedBy   String
   lastUpdated   String
@@ -41,4 +42,17 @@ model RequestEvent {
   request    ServiceRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
 
   @@index([requestId])
+}
+
+model User {
+  id           String      @id
+  username     String      @unique
+  passwordHash String
+  displayName  String
+  /// 'employee' | 'staff' | 'lead' - kept a plain string, not a Prisma enum,
+  /// since actors.ts already owns the small set of valid roles and what each
+  /// one may do; this column is only ever compared to that set, never relied
+  /// on as its own source of truth.
+  role         String
+  department   Department?
 }

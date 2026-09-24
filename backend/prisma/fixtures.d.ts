@@ -7,6 +7,7 @@ export interface RequestFixture {
   title: string;
   description: string;
   department: string;
+  aiVerified: boolean;
   currentStatus: string;
   submittedBy: string;
   lastUpdated: string;
