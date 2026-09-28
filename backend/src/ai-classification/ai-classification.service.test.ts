@@ -1,5 +1,5 @@
 import { BadRequestException, ForbiddenException } from '@nestjs/common';
-import { describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { Actor } from '../requests/actors';
 import { Department } from '../requests/requests.data';
 import { AiClassificationService } from './ai-classification.service';
@@ -186,6 +186,30 @@ describe('unclear input - an honest "I cannot tell" is rejected, not waved throu
 });
 
 describe('fail-open - the AI being unavailable never blocks a submission', () => {
+  let warnings: ReturnType<typeof vi.spyOn>;
+  beforeEach(() => {
+    warnings = vi.spyOn(console, 'warn').mockImplementation(() => {});
+  });
+  afterEach(() => {
+    warnings.mockRestore();
+  });
+
+  it('leaves a warning in the logs, with the reason but never the request text', async () => {
+    const service = buildService('fail');
+
+    await service.checkIntake({
+      title: 'Payroll question',
+      description: 'My salary slip looks wrong this month.',
+      department: Department.HR,
+      actor: EMPLOYEE,
+    });
+
+    expect(warnings).toHaveBeenCalledTimes(1);
+    const line = JSON.parse(String(warnings.mock.calls[0][0]));
+    expect(line).toMatchObject({ level: 'warn', event: 'ai_fail_open', reason: 'the model could not be reached' });
+    expect(JSON.stringify(line)).not.toMatch(/Payroll|salary/);
+  });
+
   it('allows the request through, unverified, when the classifier fails', async () => {
     const service = buildService('fail');
 

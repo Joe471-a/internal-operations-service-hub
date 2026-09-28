@@ -1,4 +1,5 @@
 import { BadRequestException, ForbiddenException, Injectable } from '@nestjs/common';
+import { log } from '../logging/log';
 import { Actor } from '../requests/actors';
 import { Department } from '../requests/requests.data';
 import { ClassificationFailedError, GroqClassifierClient } from './groq-classifier.client';
@@ -48,6 +49,9 @@ export class AiClassificationService {
       classifiedDepartment = result.department;
     } catch (problem) {
       if (problem instanceof ClassificationFailedError) {
+        // The request still goes through - but an AI outage must not be
+        // invisible, so it leaves a warning in the logs every time.
+        log('warn', 'ai_fail_open', { reason: problem.message });
         return { aiVerified: false };
       }
       throw problem;
