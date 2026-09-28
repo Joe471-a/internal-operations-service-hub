@@ -89,6 +89,32 @@ export function parseClassification(raw: unknown): ClassificationResult {
 @Injectable()
 export class GroqClassifierClient {
   /**
+   * Is the model reachable with this key, right now?
+   *
+   * Lists the available models - a real, authenticated call that proves the
+   * key works and Groq answers, without asking the model anything (so it
+   * spends no tokens). Resolves if so, throws the same error type as
+   * classify() if not - including when there is no key at all.
+   */
+  async ping(): Promise<void> {
+    const apiKey = requireApiKey();
+
+    let response: Response;
+    try {
+      response = await fetch(`${GROQ_BASE_URL()}/models`, {
+        headers: { authorization: `Bearer ${apiKey}` },
+        signal: AbortSignal.timeout(3000),
+      });
+    } catch {
+      throw new ClassificationFailedError('the classification model could not be reached');
+    }
+
+    if (!response.ok) {
+      throw new ClassificationFailedError(`the classification model answered with status ${response.status}`);
+    }
+  }
+
+  /**
    * Asks the model what department this request text belongs to.
    *
    * The request is OpenAI-compatible, matching Groq's real API - nothing

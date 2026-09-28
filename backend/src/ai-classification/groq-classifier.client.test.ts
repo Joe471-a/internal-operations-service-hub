@@ -182,6 +182,35 @@ describe('when the envelope itself is wrong', () => {
   });
 });
 
+describe('ping - is the model reachable, for the health check', () => {
+  it('lists the models with the key, and asks the model nothing', async () => {
+    const requests = modelAnswers(200, { data: [{ id: 'openai/gpt-oss-20b' }] });
+
+    await new GroqClassifierClient().ping();
+
+    expect(requests).toHaveLength(1);
+    expect(requests[0].url).toMatch(/\/models$/);
+    expect(new Headers(requests[0].init.headers).get('authorization')).toBe('Bearer test-key');
+  });
+
+  it('refuses when Groq rejects the key', async () => {
+    modelAnswers(401, { error: { message: 'Invalid API Key' } });
+
+    await expect(new GroqClassifierClient().ping()).rejects.toBeInstanceOf(ClassificationFailedError);
+  });
+
+  it('refuses when Groq cannot be reached at all', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => {
+        throw new Error('ECONNREFUSED');
+      }),
+    );
+
+    await expect(new GroqClassifierClient().ping()).rejects.toBeInstanceOf(ClassificationFailedError);
+  });
+});
+
 describe('parseClassification, directly', () => {
   it('is the same function the client uses internally - tests exercise the real thing', () => {
     expect(parseClassification({ department: 'HR' })).toEqual({ department: 'HR' });
