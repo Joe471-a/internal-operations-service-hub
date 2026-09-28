@@ -18,7 +18,10 @@
     "test:watch": "vitest",
     "test:e2e": "playwright test",
     "eval:classification": "vitest run --config vitest.eval.config.mts --reporter=verbose",
-    "test:all": "npm test && npm run test:e2e && npm run eval:classification"
+    "test:all": "npm test && npm run test:e2e && npm run eval:classification",
+    "test:health": "vitest run backend/src/health",
+    "health": "node scripts/health.js",
+    "monitor": "node scripts/monitor.js"
   },
   "devDependencies": {
     "@playwright/test": "1.62.1",
