@@ -5,6 +5,14 @@ export function formatStatus(value: string): string {
   return words.charAt(0).toUpperCase() + words.slice(1);
 }
 
+/**
+ * How a request's id is shown: the database stores and numbers the plain
+ * id (1006), the screen always shows it as REQ-1006.
+ */
+export function formatRequestKey(id: number): string {
+  return `REQ-${id}`;
+}
+
 export function formatTime(value: string): string {
   return new Date(value).toLocaleString();
 }

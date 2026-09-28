@@ -64,9 +64,9 @@ function fakePrisma(request: Record<string, unknown> | null, { changedMeanwhile 
   return fake;
 }
 
-/** REQ-1001 as the hub knows it: an IT request, freshly submitted. */
+/** Request 1001 as the hub knows it: an IT request, freshly submitted. */
 const IT_SUBMITTED_REQUEST = {
-  id: 'REQ-1001',
+  id: 1001,
   title: "Laptop won't turn on",
   description: 'My laptop does not power on at all.',
   department: 'IT',
@@ -187,7 +187,7 @@ describe('who may assign or deny a request', () => {
     const { service, prisma } = buildService(IT_SUBMITTED_REQUEST);
 
     await expect(
-      service.transition('REQ-1001', 'ASSIGNED', 'hr-lead-001'),
+      service.transition(1001, 'ASSIGNED', 'hr-lead-001'),
     ).rejects.toBeInstanceOf(ForbiddenException);
 
     // The refusal has to happen before anything else does. If the hub had
@@ -200,7 +200,7 @@ describe('who may assign or deny a request', () => {
     const { service, prisma } = buildService(IT_SUBMITTED_REQUEST);
 
     await expect(
-      service.transition('REQ-1001', 'ASSIGNED', 'it-staff-001'),
+      service.transition(1001, 'ASSIGNED', 'it-staff-001'),
     ).rejects.toBeInstanceOf(ForbiddenException);
 
     expect(prisma.updates).toEqual([]);
@@ -209,7 +209,7 @@ describe('who may assign or deny a request', () => {
   it('lets the IT lead assign an IT request', async () => {
     const { service, prisma } = buildService(IT_SUBMITTED_REQUEST);
 
-    const result = await service.transition('REQ-1001', 'ASSIGNED', 'it-lead-001');
+    const result = await service.transition(1001, 'ASSIGNED', 'it-lead-001');
 
     expect(result.currentStatus).toBe('ASSIGNED');
     expect(prisma.updates).toHaveLength(1);
@@ -219,7 +219,7 @@ describe('who may assign or deny a request', () => {
   it('lets the IT lead deny an IT request instead', async () => {
     const { service, prisma } = buildService(IT_SUBMITTED_REQUEST);
 
-    await service.transition('REQ-1001', 'DENIED', 'it-lead-001');
+    await service.transition(1001, 'DENIED', 'it-lead-001');
 
     expect(prisma.updates).toHaveLength(1);
     expect(prisma.updates[0]).toMatchObject({ data: { currentStatus: 'DENIED' } });
@@ -230,9 +230,9 @@ describe('two people acting on the same request at once', () => {
   it('only writes if the status is still the one that was checked', async () => {
     const { service, prisma } = buildService(IT_SUBMITTED_REQUEST);
 
-    await service.transition('REQ-1001', 'ASSIGNED', 'it-lead-001');
+    await service.transition(1001, 'ASSIGNED', 'it-lead-001');
 
-    expect(prisma.updates[0]).toMatchObject({ where: { id: 'REQ-1001', currentStatus: 'SUBMITTED' } });
+    expect(prisma.updates[0]).toMatchObject({ where: { id: 1001, currentStatus: 'SUBMITTED' } });
     expect(prisma.events).toHaveLength(1);
   });
 
@@ -240,7 +240,7 @@ describe('two people acting on the same request at once', () => {
     const { service, prisma } = buildService(IT_SUBMITTED_REQUEST, { changedMeanwhile: true });
 
     await expect(
-      service.transition('REQ-1001', 'ASSIGNED', 'it-lead-001'),
+      service.transition(1001, 'ASSIGNED', 'it-lead-001'),
     ).rejects.toBeInstanceOf(ConflictException);
 
     expect(prisma.updates).toEqual([]);
@@ -252,46 +252,46 @@ describe('who may view a request', () => {
   it('lets a staff member of the same department view it, even one submitted by someone else', async () => {
     const { service } = buildService(IT_SUBMITTED_REQUEST); // department: 'IT', submittedBy: 'emp-001'
 
-    const result = await service.getById('REQ-1001', 'it-staff-001');
+    const result = await service.getById(1001, 'it-staff-001');
 
-    expect(result?.id).toBe('REQ-1001');
+    expect(result?.id).toBe(1001);
   });
 
   it('lets a lead of the same department view it too', async () => {
     const { service } = buildService(IT_SUBMITTED_REQUEST);
 
-    const result = await service.getById('REQ-1001', 'it-lead-001');
+    const result = await service.getById(1001, 'it-lead-001');
 
-    expect(result?.id).toBe('REQ-1001');
+    expect(result?.id).toBe(1001);
   });
 
   it("refuses a lead of a different department who didn't submit it", async () => {
     const { service } = buildService(IT_SUBMITTED_REQUEST); // IT request, HR lead has no part in it
 
-    await expect(service.getById('REQ-1001', 'hr-lead-001')).rejects.toBeInstanceOf(ForbiddenException);
+    await expect(service.getById(1001, 'hr-lead-001')).rejects.toBeInstanceOf(ForbiddenException);
   });
 
   it('lets a lead view a request from another department that they submitted themselves', async () => {
     // hr-lead-001 can submit to any department, then must still be able to see their own request.
     const { service } = buildService({ ...IT_SUBMITTED_REQUEST, submittedBy: 'hr-lead-001' });
 
-    const result = await service.getById('REQ-1001', 'hr-lead-001');
+    const result = await service.getById(1001, 'hr-lead-001');
 
-    expect(result?.id).toBe('REQ-1001');
+    expect(result?.id).toBe(1001);
   });
 
   it('lets an employee view a request they submitted themselves', async () => {
     const { service } = buildService(IT_SUBMITTED_REQUEST); // submittedBy: 'emp-001'
 
-    const result = await service.getById('REQ-1001', 'emp-001');
+    const result = await service.getById(1001, 'emp-001');
 
-    expect(result?.id).toBe('REQ-1001');
+    expect(result?.id).toBe(1001);
   });
 
   it("refuses an employee viewing someone else's request", async () => {
     const { service } = buildService({ ...IT_SUBMITTED_REQUEST, submittedBy: 'some-other-employee' });
 
-    await expect(service.getById('REQ-1001', 'emp-001')).rejects.toBeInstanceOf(ForbiddenException);
+    await expect(service.getById(1001, 'emp-001')).rejects.toBeInstanceOf(ForbiddenException);
   });
 });
 
@@ -300,7 +300,7 @@ describe('an actor the hub does not recognise', () => {
     const { service, prisma } = buildService(IT_SUBMITTED_REQUEST);
 
     await expect(
-      service.transition('REQ-1001', 'ASSIGNED', 'ghost-001'),
+      service.transition(1001, 'ASSIGNED', 'ghost-001'),
     ).rejects.toBeInstanceOf(UnauthorizedException);
 
     expect(prisma.updates).toEqual([]);
@@ -309,7 +309,7 @@ describe('an actor the hub does not recognise', () => {
   it('is refused when just looking a request up too', async () => {
     const { service } = buildService(IT_SUBMITTED_REQUEST);
 
-    await expect(service.getById('REQ-1001', 'ghost-001')).rejects.toBeInstanceOf(UnauthorizedException);
+    await expect(service.getById(1001, 'ghost-001')).rejects.toBeInstanceOf(UnauthorizedException);
   });
 });
 

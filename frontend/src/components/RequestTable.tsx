@@ -1,7 +1,7 @@
 import { CheckCircle2, ChevronDown, ChevronUp, PlayCircle, UserCheck, X, XCircle } from 'lucide-react';
 import { Fragment } from 'react';
 import { ServiceRequest } from '../api/requests';
-import { actorName, formatStatus, formatTime } from '../lib/format';
+import { actorName, formatRequestKey, formatStatus, formatTime } from '../lib/format';
 import { useMediaQuery } from '../lib/useMediaQuery';
 import { AiCheckBadge } from './AiCheckBadge';
 import { Avatar } from './Avatar';
@@ -17,8 +17,8 @@ interface RequestTableProps {
   statusFilter: string | null;
   onClearStatusFilter: () => void;
   expandedRequest: ServiceRequest | null;
-  onToggleHistory: (requestId: string) => void;
-  onTransition: (requestId: string, to: string) => void;
+  onToggleHistory: (requestId: number) => void;
+  onTransition: (requestId: number, to: string) => void;
   actorId: string;
 }
 
@@ -37,7 +37,9 @@ export function RequestTable({
   const query = searchQuery.trim().toLowerCase();
   const visibleRequests = requests.filter((request) => {
     if (statusFilter && request.currentStatus !== statusFilter) return false;
-    if (query && !request.title.toLowerCase().includes(query) && !request.id.toLowerCase().includes(query)) {
+    // The key as shown (REQ-1006) matches "req-1006", "1006" or "100".
+    const key = formatRequestKey(request.id).toLowerCase();
+    if (query && !request.title.toLowerCase().includes(query) && !key.includes(query)) {
       return false;
     }
     return true;
@@ -106,10 +108,11 @@ export function RequestTable({
               {visibleRequests.map((request) => {
                 const isExpanded = expandedRequest?.id === request.id;
                 const submitter = actorName(request.submittedBy);
+                const key = formatRequestKey(request.id);
                 return (
                   <Fragment key={request.id}>
                     <tr className={isExpanded ? 'is-expanded' : ''}>
-                      <td className={`id-cell id-cell-${request.department.toLowerCase()}`}>{request.id}</td>
+                      <td className={`id-cell id-cell-${request.department.toLowerCase()}`}>{key}</td>
                       <td className="cell-truncate">{request.title}</td>
                       {showDept && (
                         <td>
@@ -138,7 +141,7 @@ export function RequestTable({
                               {request.currentStatus === 'SUBMITTED' && (
                                 <>
                                   <button
-                                    aria-label={`Assign ${request.id}`}
+                                    aria-label={`Assign ${key}`}
                                     disabled={busy}
                                     onClick={() => onTransition(request.id, 'ASSIGNED')}
                                   >
@@ -146,7 +149,7 @@ export function RequestTable({
                                     Assign
                                   </button>
                                   <button
-                                    aria-label={`Deny ${request.id}`}
+                                    aria-label={`Deny ${key}`}
                                     className="deny"
                                     disabled={busy}
                                     onClick={() => onTransition(request.id, 'DENIED')}
@@ -158,7 +161,7 @@ export function RequestTable({
                               )}
                               {request.currentStatus === 'ASSIGNED' && (
                                 <button
-                                  aria-label={`Start ${request.id}`}
+                                  aria-label={`Start ${key}`}
                                   disabled={busy}
                                   onClick={() => onTransition(request.id, 'IN_PROGRESS')}
                                 >
@@ -168,7 +171,7 @@ export function RequestTable({
                               )}
                               {request.currentStatus === 'IN_PROGRESS' && (
                                 <button
-                                  aria-label={`Complete ${request.id}`}
+                                  aria-label={`Complete ${key}`}
                                   disabled={busy}
                                   onClick={() => onTransition(request.id, 'COMPLETED')}
                                 >
@@ -184,7 +187,7 @@ export function RequestTable({
                         <button
                           type="button"
                           className={`expand-toggle${isExpanded ? ' active' : ''}`}
-                          aria-label={`${isExpanded ? 'Hide' : 'Show'} history for ${request.id}`}
+                          aria-label={`${isExpanded ? 'Hide' : 'Show'} history for ${key}`}
                           aria-expanded={isExpanded}
                           disabled={busy}
                           onClick={() => onToggleHistory(request.id)}

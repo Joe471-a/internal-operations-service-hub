@@ -3,7 +3,7 @@
 import type { PrismaClient } from '@prisma/client';
 
 export interface RequestFixture {
-  id: string;
+  id: number;
   title: string;
   description: string;
   department: string;

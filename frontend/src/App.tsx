@@ -17,6 +17,7 @@ import { SubmitPage } from './components/SubmitPage';
 import { Toast } from './components/Toast';
 import { TopBar } from './components/TopBar';
 import { getViewLabel, VIEWS_WITH_STATS } from './lib/constants';
+import { formatRequestKey } from './lib/format';
 import { clearSession, getSession, setSession as persistSession, Session } from './lib/session';
 import { applyTheme, getInitialTheme, Theme } from './lib/theme';
 
@@ -122,7 +123,7 @@ export default function App() {
       setTitle('');
       setDescription('');
       setPage('home');
-      setSuccessMessage(`Request ${created.id} submitted`);
+      setSuccessMessage(`Request ${formatRequestKey(created.id)} submitted`);
       await load(view);
     } catch (problem) {
       syncSessionFromStorage();
@@ -132,7 +133,7 @@ export default function App() {
     }
   }
 
-  async function handleTransition(requestId: string, to: string) {
+  async function handleTransition(requestId: number, to: string) {
     setBusy(true);
     setError(null);
     try {
@@ -148,7 +149,7 @@ export default function App() {
   }
 
   /** Collapses if this row is already expanded, otherwise fetches its history and expands it. */
-  async function handleToggleHistory(requestId: string) {
+  async function handleToggleHistory(requestId: number) {
     if (historyView?.id === requestId) {
       setHistoryView(null);
       return;

@@ -5,7 +5,7 @@
  * The seed script writes these into the development database, and the tests
  * write these same rows into their own database. One definition, two
  * readers: a test can never quietly disagree with the app about what
- * REQ-1001 is.
+ * request 1001 is.
  *
  * Actor ids here (emp-001, it-staff-001, ...) are the same ids actors.ts
  * resolves — the fixtures do not define who those people are, only that a
@@ -14,7 +14,7 @@
 
 const REQUESTS = [
   {
-    id: 'REQ-1001',
+    id: 1001,
     title: "Laptop won't turn on",
     description: 'My laptop does not power on at all, and I have a client meeting this afternoon.',
     department: 'IT',
@@ -25,7 +25,7 @@ const REQUESTS = [
     history: [['SUBMITTED', '2026-09-01T09:05:00', 'emp-001']],
   },
   {
-    id: 'REQ-1002',
+    id: 1002,
     title: 'Need VPN access restored',
     description: 'VPN client keeps disconnecting every few minutes since the update.',
     department: 'IT',
@@ -40,7 +40,7 @@ const REQUESTS = [
     ],
   },
   {
-    id: 'REQ-1003',
+    id: 1003,
     title: 'New monitor request',
     description: 'Requesting a second monitor for the new hire desk setup.',
     department: 'IT',
@@ -56,7 +56,7 @@ const REQUESTS = [
     ],
   },
   {
-    id: 'REQ-1004',
+    id: 1004,
     title: 'Install unapproved software',
     description: 'Requesting local admin rights to install a personal video editor.',
     department: 'IT',
@@ -70,7 +70,7 @@ const REQUESTS = [
     ],
   },
   {
-    id: 'REQ-1005',
+    id: 1005,
     title: 'Reimbursement question',
     description: 'Need clarification on the per-diem policy for the upcoming conference.',
     department: 'HR',
@@ -113,6 +113,16 @@ async function resetFixtures(prisma) {
       },
     });
   }
+
+  // These rows were inserted with their ids written out, which the
+  // database's id sequence does not notice - left alone it would still hand
+  // out 1, 2, 3... and one day 1001 again. Move it past the highest id, so
+  // the next request anyone submits is 1006.
+  await prisma.$queryRaw`
+    SELECT setval(
+      pg_get_serial_sequence('"ServiceRequest"', 'id')::regclass,
+      COALESCE((SELECT MAX("id") FROM "ServiceRequest"), 1)
+    )`;
 }
 
 module.exports = { REQUESTS, resetFixtures };

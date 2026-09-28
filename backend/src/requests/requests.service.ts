@@ -1,4 +1,3 @@
-import { randomUUID } from 'node:crypto';
 import {
   BadRequestException,
   ConflictException,
@@ -29,7 +28,7 @@ export interface RequestEvent {
 }
 
 export interface RequestResult {
-  id: string;
+  id: number;
   title: string;
   description: string;
   department: Department;
@@ -147,7 +146,7 @@ export class RequestsService {
    *  - actor may not view it  -> 403 Forbidden (an employee, on a request
    *    that is not theirs - see actors.ts's canViewHistory)
    */
-  async getById(id: string, actorId: string | undefined): Promise<RequestResult | null> {
+  async getById(id: number, actorId: string | undefined): Promise<RequestResult | null> {
     const actor = await this.requireActor(actorId);
 
     const request = await this.prisma.serviceRequest.findUnique({
@@ -209,9 +208,11 @@ export class RequestsService {
     });
 
     const now = new Date().toISOString();
+    // No id is passed: the database hands out the next number from its own
+    // sequence, one at a time, so simultaneous submits always get different
+    // ids. The app never works out an id itself.
     const record = await this.prisma.serviceRequest.create({
       data: {
-        id: `REQ-${randomUUID().slice(0, 8)}`,
         title: trimmedTitle,
         description: trimmedDescription,
         department,
@@ -238,7 +239,7 @@ export class RequestsService {
    *  - illegal transition          -> 409 Conflict (terminal state or undefined transition)
    *  - changed by someone else     -> 409 Conflict (between our read and our write)
    */
-  async transition(id: string, to: unknown, actorId: string | undefined): Promise<RequestResult> {
+  async transition(id: number, to: unknown, actorId: string | undefined): Promise<RequestResult> {
     const actor = await this.requireActor(actorId);
 
     const request = await this.prisma.serviceRequest.findUnique({ where: { id } });

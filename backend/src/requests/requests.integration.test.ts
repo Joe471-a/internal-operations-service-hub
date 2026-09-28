@@ -9,7 +9,7 @@ import { UsersService } from '../users/users.service';
 import { RequestsService } from './requests.service';
 
 // The fixtures the app itself is seeded from — one definition, so a test can
-// never quietly disagree with the app about what REQ-1001 is.
+// never quietly disagree with the app about what request 1001 is.
 import { resetFixtures } from '../../prisma/fixtures';
 import { resetUsers } from '../../prisma/users';
 
@@ -57,8 +57,8 @@ beforeAll(async () => {
   });
 
   prisma = new PrismaService({ datasourceUrl: testUrl });
-  // This suite exercises transition(), not create(), so the classifier is
-  // never actually called - a stub just needs to satisfy the constructor.
+  // The AI rules are tested on their own (ai-classification.service.test.ts);
+  // here the classifier always agrees, so create() is about ids and storage.
   const stubAiClassification = { checkIntake: async () => ({ aiVerified: true }) };
   // A real UsersService against the same test database - the six seeded
   // users are reference data this suite never mutates, so they are reset
@@ -86,7 +86,7 @@ beforeEach(async () => {
  * PostgreSQL, unlike SQLite, makes no promise to return rows in the order
  * they were inserted, and this suite reinserts rows before every test.
  */
-async function readBack(id: string) {
+async function readBack(id: number) {
   const request = await prisma.serviceRequest.findUnique({
     where: { id },
     include: { history: { orderBy: { id: 'asc' } } },
@@ -97,13 +97,13 @@ async function readBack(id: string) {
 
 describe('assigning a request, for real', () => {
   it('is visible in the database once the IT lead assigns it', async () => {
-    const before = await readBack('REQ-1001');
+    const before = await readBack(1001);
     expect(before.currentStatus).toBe('SUBMITTED');
     expect(before.history).toHaveLength(1);
 
-    await service.transition('REQ-1001', 'ASSIGNED', 'it-lead-001');
+    await service.transition(1001, 'ASSIGNED', 'it-lead-001');
 
-    const after = await readBack('REQ-1001');
+    const after = await readBack(1001);
     expect(after.currentStatus).toBe('ASSIGNED');
     expect(after.history).toHaveLength(2);
     expect(after.history.map((event) => event.status)).toEqual(['SUBMITTED', 'ASSIGNED']);
@@ -117,12 +117,37 @@ describe('assigning a request, for real', () => {
    */
   it('changes nothing at all when a different department tries', async () => {
     await expect(
-      service.transition('REQ-1001', 'ASSIGNED', 'hr-lead-001'),
+      service.transition(1001, 'ASSIGNED', 'hr-lead-001'),
     ).rejects.toMatchObject({ status: 403 });
 
-    const after = await readBack('REQ-1001');
+    const after = await readBack(1001);
     expect(after.currentStatus).toBe('SUBMITTED');
     expect(after.history).toHaveLength(1);
+  });
+});
+
+/**
+ * Request ids come from the database's own sequence, never from the app.
+ */
+describe('request ids, for real', () => {
+  it('numbers new requests on from the seeded ones: 1006, then 1007', async () => {
+    const first = await service.create('Printer jammed', 'The 3rd floor printer is jammed.', 'IT', 'emp-001');
+    const second = await service.create('Monitor flickers', 'My second monitor keeps flickering.', 'IT', 'emp-001');
+
+    expect(first.id).toBe(1006);
+    expect(second.id).toBe(1007);
+  });
+
+  it('gives ten requests submitted at the same moment ten different ids', async () => {
+    const created = await Promise.all(
+      Array.from({ length: 10 }, (_, i) =>
+        service.create(`Simultaneous request ${i}`, 'Submitted at the same moment as nine others.', 'IT', 'emp-001'),
+      ),
+    );
+
+    const ids = created.map((request) => request.id);
+    expect(new Set(ids).size).toBe(10);
+    expect([...ids].sort((a, b) => a - b)).toEqual([1006, 1007, 1008, 1009, 1010, 1011, 1012, 1013, 1014, 1015]);
   });
 });
 
@@ -134,27 +159,27 @@ describe('assigning a request, for real', () => {
 describe('two actions at once, for real', () => {
   it('lets exactly one of two simultaneous assigns through (a double-click)', async () => {
     const results = await Promise.allSettled([
-      service.transition('REQ-1001', 'ASSIGNED', 'it-lead-001'),
-      service.transition('REQ-1001', 'ASSIGNED', 'it-lead-001'),
+      service.transition(1001, 'ASSIGNED', 'it-lead-001'),
+      service.transition(1001, 'ASSIGNED', 'it-lead-001'),
     ]);
 
     expect(results.filter((r) => r.status === 'fulfilled')).toHaveLength(1);
     const refused = results.find((r) => r.status === 'rejected') as PromiseRejectedResult;
     expect(refused.reason).toMatchObject({ status: 409 });
 
-    const after = await readBack('REQ-1001');
+    const after = await readBack(1001);
     expect(after.history.map((event) => event.status)).toEqual(['SUBMITTED', 'ASSIGNED']);
   });
 
   it('never leaves a request both assigned and denied when Assign and Deny race', async () => {
     const results = await Promise.allSettled([
-      service.transition('REQ-1001', 'ASSIGNED', 'it-lead-001'),
-      service.transition('REQ-1001', 'DENIED', 'it-lead-001'),
+      service.transition(1001, 'ASSIGNED', 'it-lead-001'),
+      service.transition(1001, 'DENIED', 'it-lead-001'),
     ]);
 
     expect(results.filter((r) => r.status === 'fulfilled')).toHaveLength(1);
 
-    const after = await readBack('REQ-1001');
+    const after = await readBack(1001);
     expect(after.history).toHaveLength(2);
     expect(after.history[1].status).toBe(after.currentStatus);
   });
@@ -169,9 +194,9 @@ describe('two actions at once, for real', () => {
  */
 describe('regression: the original request lifecycle still holds', () => {
   it('moves a request through its full lifecycle, one legal step at a time', async () => {
-    await service.transition('REQ-1005', 'ASSIGNED', 'hr-lead-001');
-    await service.transition('REQ-1005', 'IN_PROGRESS', 'hr-lead-001');
-    const done = await service.transition('REQ-1005', 'COMPLETED', 'hr-lead-001');
+    await service.transition(1005, 'ASSIGNED', 'hr-lead-001');
+    await service.transition(1005, 'IN_PROGRESS', 'hr-lead-001');
+    const done = await service.transition(1005, 'COMPLETED', 'hr-lead-001');
 
     expect(done.currentStatus).toBe('COMPLETED');
     expect(done.history.map((event) => event.status)).toEqual([
@@ -182,24 +207,24 @@ describe('regression: the original request lifecycle still holds', () => {
     ]);
   });
 
-  it('still refuses to move a completed request (REQ-1003)', async () => {
+  it('still refuses to move a completed request (1003)', async () => {
     await expect(
-      service.transition('REQ-1003', 'IN_PROGRESS', 'it-lead-001'),
+      service.transition(1003, 'IN_PROGRESS', 'it-lead-001'),
     ).rejects.toMatchObject({ status: 409 });
 
-    const after = await readBack('REQ-1003');
+    const after = await readBack(1003);
     expect(after.currentStatus).toBe('COMPLETED');
   });
 
   it('still rejects a status that does not exist', async () => {
     await expect(
-      service.transition('REQ-1001', 'Banana', 'it-lead-001'),
+      service.transition(1001, 'Banana', 'it-lead-001'),
     ).rejects.toMatchObject({ status: 400 });
   });
 
   it('still answers an unknown id with 404', async () => {
     await expect(
-      service.transition('REQ-0000', 'ASSIGNED', 'it-lead-001'),
+      service.transition(9999, 'ASSIGNED', 'it-lead-001'),
     ).rejects.toBeInstanceOf(NotFoundException);
   });
 });

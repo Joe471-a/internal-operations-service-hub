@@ -35,7 +35,8 @@ export interface RequestEvent {
 }
 
 export interface ServiceRequest {
-  id: string;
+  /** Assigned by the backend's database in order: 1001, 1002, ... */
+  id: number;
   title: string;
   description: string;
   department: Department;
@@ -122,7 +123,7 @@ export async function fetchVisible(view?: RequestView): Promise<ServiceRequest[]
  * request; an employee may only look up one they submitted themselves -
  * the backend enforces this and refuses (403) otherwise.
  */
-export async function fetchById(id: string): Promise<ServiceRequest> {
+export async function fetchById(id: number): Promise<ServiceRequest> {
   return readResponse<ServiceRequest>(
     await fetch(`${API_BASE_URL}/requests/${id}`, {
       headers: authHeader(),
@@ -144,7 +145,7 @@ export async function createRequest(
   );
 }
 
-export async function transitionRequest(id: string, to: string): Promise<ServiceRequest> {
+export async function transitionRequest(id: number, to: string): Promise<ServiceRequest> {
   return readResponse<ServiceRequest>(
     await fetch(`${API_BASE_URL}/requests/${id}/transition`, {
       method: 'POST',

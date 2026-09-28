@@ -22,7 +22,10 @@ enum RequestStatus {
 }
 
 model ServiceRequest {
-  id            String         @id
+  /// Assigned by the database from its own sequence on every insert - never
+  /// by the app - so two requests created at the same moment can never get
+  /// the same number.
+  id            Int            @id @default(autoincrement())
   title         String
   description   String
   department    Department
@@ -41,7 +44,7 @@ model RequestEvent {
   status     RequestStatus
   occurredAt String
   actorId    String
-  requestId  String
+  requestId  Int
   request    ServiceRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
 
   @@index([requestId])

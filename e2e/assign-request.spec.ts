@@ -60,7 +60,7 @@ test('an employee submits a request, and only the right department lead may assi
   // --- HR Lead has no part in an IT request - it never even appears -------
   await logOut(page);
   await logIn(page, 'sami', 'sami123');
-  await expect(page.locator('tr', { hasText: 'REQ-1005' })).toBeVisible();
+  await expect(page.locator('td.id-cell', { hasText: /^REQ-1005$/ })).toBeVisible();
   await expect(page.locator('tr', { hasText: title })).toHaveCount(0);
 
   // --- IT Lead succeeds -----------------------------------------------------
