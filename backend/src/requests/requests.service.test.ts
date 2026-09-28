@@ -4,6 +4,7 @@ import { AiClassificationService } from '../ai-classification/ai-classification.
 import { PrismaService } from '../prisma.service';
 import { UsersService } from '../users/users.service';
 import { Actor } from './actors';
+import { MAX_DESCRIPTION_LENGTH, MAX_TITLE_LENGTH } from './requests.data';
 import { RequestsService } from './requests.service';
 
 /**
@@ -385,6 +386,42 @@ describe('submitting a request', () => {
     ).rejects.toBeInstanceOf(BadRequestException);
 
     expect(prisma.creates).toEqual([]);
+  });
+
+  it('rejects a title over the limit, before the AI is ever asked, and writes nothing', async () => {
+    const { service, prisma } = buildService(null);
+
+    await expect(
+      service.create('x'.repeat(MAX_TITLE_LENGTH + 1), 'a real description', 'IT', 'emp-001'),
+    ).rejects.toBeInstanceOf(BadRequestException);
+
+    expect(prisma.creates).toEqual([]);
+  });
+
+  it('rejects a description over the limit, and writes nothing', async () => {
+    const { service, prisma } = buildService(null);
+
+    await expect(
+      service.create('Need help', 'x'.repeat(MAX_DESCRIPTION_LENGTH + 1), 'IT', 'emp-001'),
+    ).rejects.toBeInstanceOf(BadRequestException);
+
+    expect(prisma.creates).toEqual([]);
+  });
+
+  it('accepts a title and description exactly at the limit', async () => {
+    const { service, prisma } = buildService(null);
+
+    await service.create('x'.repeat(MAX_TITLE_LENGTH), 'x'.repeat(MAX_DESCRIPTION_LENGTH), 'IT', 'emp-001');
+
+    expect(prisma.creates).toHaveLength(1);
+  });
+
+  it('measures the limit after trimming, so surrounding spaces never count', async () => {
+    const { service, prisma } = buildService(null);
+
+    await service.create(`   ${'x'.repeat(MAX_TITLE_LENGTH)}   `, 'a real description', 'IT', 'emp-001');
+
+    expect(prisma.creates).toHaveLength(1);
   });
 
   it('lets any known actor submit a well-formed request', async () => {

@@ -15,6 +15,14 @@ export const STATUSES = [
 export const DEPARTMENTS: Department[] = ['IT', 'HR', 'FINANCE'];
 
 /**
+ * The same limits the backend enforces (backend/src/requests/requests.data.ts),
+ * so the form stops at them instead of letting someone type a request the
+ * hub will refuse. The backend stays the one that actually enforces them.
+ */
+export const MAX_TITLE_LENGTH = 120;
+export const MAX_DESCRIPTION_LENGTH = 2000;
+
+/**
  * Display-only - not an identity or auth source (that's the session from
  * login, backed by the `User` table). A request's history shows who else
  * touched it (submitter, assigner, ...), and those other people's ids

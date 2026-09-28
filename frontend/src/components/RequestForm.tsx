@@ -1,7 +1,7 @@
 import { Send } from 'lucide-react';
 import { FormEvent } from 'react';
 import { Department } from '../api/requests';
-import { DEPARTMENTS, EXAMPLE_BY_DEPARTMENT } from '../lib/constants';
+import { DEPARTMENTS, EXAMPLE_BY_DEPARTMENT, MAX_DESCRIPTION_LENGTH, MAX_TITLE_LENGTH } from '../lib/constants';
 
 interface RequestFormProps {
   title: string;
@@ -33,6 +33,7 @@ export function RequestForm({
           value={title}
           onChange={(event) => onTitleChange(event.target.value)}
           placeholder={EXAMPLE_BY_DEPARTMENT[department].title}
+          maxLength={MAX_TITLE_LENGTH}
           required
         />
 
@@ -43,6 +44,7 @@ export function RequestForm({
           value={description}
           onChange={(event) => onDescriptionChange(event.target.value)}
           placeholder={EXAMPLE_BY_DEPARTMENT[department].description}
+          maxLength={MAX_DESCRIPTION_LENGTH}
           required
         />
 

@@ -12,7 +12,14 @@ import { AiClassificationService } from '../ai-classification/ai-classification.
 import { PrismaService } from '../prisma.service';
 import { UsersService } from '../users/users.service';
 import { Actor, Permission, can, canViewHistory, inSameDepartment } from './actors';
-import { ALL_DEPARTMENTS, Department, RequestStatus, isDepartment } from './requests.data';
+import {
+  ALL_DEPARTMENTS,
+  Department,
+  MAX_DESCRIPTION_LENGTH,
+  MAX_TITLE_LENGTH,
+  RequestStatus,
+  isDepartment,
+} from './requests.data';
 import { checkTransition, isRequestStatus } from './requests.rules';
 
 export interface RequestEvent {
@@ -178,14 +185,22 @@ export class RequestsService {
     if (typeof description !== 'string' || description.trim().length === 0) {
       throw new BadRequestException('A request needs a non-empty "description".');
     }
+    const trimmedTitle = title.trim();
+    const trimmedDescription = description.trim();
+    // Checked before the AI is ever asked, so an oversized request costs
+    // nothing and never reaches the model.
+    if (trimmedTitle.length > MAX_TITLE_LENGTH) {
+      throw new BadRequestException(`The title can be at most ${MAX_TITLE_LENGTH} characters.`);
+    }
+    if (trimmedDescription.length > MAX_DESCRIPTION_LENGTH) {
+      throw new BadRequestException(`The description can be at most ${MAX_DESCRIPTION_LENGTH} characters.`);
+    }
     if (!isDepartment(department)) {
       throw new BadRequestException(
         `"${String(department)}" is not a valid department. Use one of: ${ALL_DEPARTMENTS.join(', ')}.`,
       );
     }
 
-    const trimmedTitle = title.trim();
-    const trimmedDescription = description.trim();
     const { aiVerified } = await this.aiClassification.checkIntake({
       title: trimmedTitle,
       description: trimmedDescription,
