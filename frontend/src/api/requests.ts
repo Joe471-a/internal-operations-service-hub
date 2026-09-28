@@ -2,7 +2,13 @@
 
 import { clearSession, getSession } from '../lib/session';
 
-const API_BASE_URL = 'http://localhost:3000';
+/**
+ * Where the backend lives. Set VITE_API_URL at build time (Render's static
+ * site settings, or frontend/.env locally); without it, the local backend.
+ * Vite writes this value into the built JavaScript, so it is public - it
+ * says where the backend is, never anything secret.
+ */
+const API_BASE_URL = (import.meta.env.VITE_API_URL || 'http://localhost:3000').replace(/\/+$/, '');
 
 /**
  * The id a signed-in session identifies. The screen never chooses this
