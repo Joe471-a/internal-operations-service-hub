@@ -9,7 +9,7 @@ import { expect, Page, test } from '@playwright/test';
  *
  * Nothing in this test is a stand-in. A real browser fills in a real form,
  * the real backend applies the real authorization and lifecycle rules, and
- * a real row changes in SQLite. It is the slowest test in the project and
+ * a real row changes in PostgreSQL. It is the slowest test in the project and
  * there is only one of it, because its job is to prove the parts are
  * actually connected - the faster tests already prove that each part is
  * right on its own.
@@ -70,6 +70,6 @@ test('an employee submits a request, and only the right department lead may assi
   await itRow.getByRole('button', { name: `Assign ${requestId}` }).click();
 
   // This text only appears if the browser, the API, the login, the
-  // authorization rule, the lifecycle rule and SQLite all agreed.
+  // authorization rule, the lifecycle rule and the database all agreed.
   await expect(itRow.locator('.status')).toContainText('Assigned');
 });

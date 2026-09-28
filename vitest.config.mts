@@ -12,8 +12,8 @@ export default defineConfig({
   test: {
     environment: 'node',
     include: ['backend/src/**/*.test.ts'],
-    // The integration test copies a file and talks to SQLite; give it room
-    // and keep the suites from writing to the same test database at once.
+    // The integration test prepares its own Postgres database first; give it
+    // room and keep the suites from writing to the same test database at once.
     fileParallelism: false,
     testTimeout: 20000,
   },

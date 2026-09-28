@@ -3,8 +3,8 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"
-  url      = "file:./hub.db"
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
 }
 
 enum Department {
@@ -31,6 +31,9 @@ model ServiceRequest {
   submittedBy   String
   lastUpdated   String
   history       RequestEvent[]
+
+  @@index([department, currentStatus])
+  @@index([submittedBy])
 }
 
 model RequestEvent {

@@ -1,6 +1,7 @@
-import { copyFileSync, existsSync } from 'node:fs';
+import { execSync } from 'node:child_process';
 import { resolve } from 'node:path';
 import { NotFoundException } from '@nestjs/common';
+import { config } from 'dotenv';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { AiClassificationService } from '../ai-classification/ai-classification.service';
 import { PrismaService } from '../prisma.service';
@@ -10,49 +11,64 @@ import { RequestsService } from './requests.service';
 // The fixtures the app itself is seeded from — one definition, so a test can
 // never quietly disagree with the app about what REQ-1001 is.
 import { resetFixtures } from '../../prisma/fixtures';
+import { resetUsers } from '../../prisma/users';
 
 /**
  * The rules and the database, together.
  *
- * Everything here is real: a real PrismaClient, a real SQLite file, the real
- * service. What is being checked is not what the method returned - it is
- * what the hub still believes afterwards, read back out of the database
+ * Everything here is real: a real PrismaClient, a real Postgres database, the
+ * real service. What is being checked is not what the method returned - it
+ * is what the hub still believes afterwards, read back out of the database
  * with a second, independent query.
  *
- * The tests run against their own database file (test.db, copied from
- * hub.db once below). The app's hub.db is never opened for anything but
- * that one copy, so running this suite cannot disturb what is seeded there.
+ * The tests run against their own database (hub_test), next to the app's
+ * own database on the same Postgres server - DATABASE_URL with only the
+ * database name swapped. The app's database is never opened here, so
+ * running this suite cannot disturb what is seeded there.
  */
 
-const DEV_DB = resolve(__dirname, '../../prisma/hub.db');
-const TEST_DB = resolve(__dirname, '../../prisma/test.db');
+const BACKEND_DIR = resolve(__dirname, '../..');
+config({ path: resolve(BACKEND_DIR, '.env') });
+
+function testDatabaseUrl(): string {
+  const devUrl = process.env.DATABASE_URL;
+  if (!devUrl) {
+    throw new Error(
+      'DATABASE_URL is not set. Copy backend/.env.example to backend/.env and start Postgres with "docker compose up -d".',
+    );
+  }
+  const url = new URL(devUrl);
+  url.pathname = '/hub_test';
+  return url.toString();
+}
 
 let prisma: PrismaService;
 let service: RequestsService;
 
-beforeAll(() => {
-  if (!existsSync(DEV_DB)) {
-    throw new Error(
-      `No database found at ${DEV_DB}. Run "npm run db:setup --workspace backend" once first.`,
-    );
-  }
+beforeAll(async () => {
+  const testUrl = testDatabaseUrl();
 
-  // Copy the development database to get its tables, then empty it below.
-  // This is why the tests need no migration step of their own - and why
-  // hub.db itself is never written to by anything in this file.
-  copyFileSync(DEV_DB, TEST_DB);
+  // Creates hub_test if it does not exist yet and brings its tables in line
+  // with schema.prisma - the same step db:setup runs for the app's database.
+  execSync('npx prisma db push --skip-generate --accept-data-loss', {
+    cwd: BACKEND_DIR,
+    env: { ...process.env, DATABASE_URL: testUrl },
+    stdio: 'ignore',
+  });
 
-  // An absolute file: path on purpose - a relative one would be read as
-  // relative to the Prisma schema, not to this test.
-  prisma = new PrismaService({ datasourceUrl: `file:${TEST_DB}` });
+  prisma = new PrismaService({ datasourceUrl: testUrl });
   // This suite exercises transition(), not create(), so the classifier is
   // never actually called - a stub just needs to satisfy the constructor.
   const stubAiClassification = { checkIntake: async () => ({ aiVerified: true }) };
   // A real UsersService against the same test database - the six seeded
-  // users are reference data this suite never mutates, so no reset needed.
+  // users are reference data this suite never mutates, so they are reset
+  // once here rather than before every test.
+  await resetUsers(prisma);
   const users = new UsersService(prisma);
   service = new RequestsService(prisma, stubAiClassification as unknown as AiClassificationService, users);
-});
+  // prisma db push alone takes several seconds - well past Vitest's default
+  // 10s for a hook on a busy machine.
+}, 60_000);
 
 afterAll(async () => {
   await prisma.$disconnect();
@@ -64,11 +80,16 @@ beforeEach(async () => {
   await resetFixtures(prisma);
 });
 
-/** Reads a request straight out of the (test) database, past the service. */
+/**
+ * Reads a request straight out of the (test) database, past the service.
+ * History is ordered explicitly, the same way the service orders it -
+ * PostgreSQL, unlike SQLite, makes no promise to return rows in the order
+ * they were inserted, and this suite reinserts rows before every test.
+ */
 async function readBack(id: string) {
   const request = await prisma.serviceRequest.findUnique({
     where: { id },
-    include: { history: true },
+    include: { history: { orderBy: { id: 'asc' } } },
   });
   if (!request) throw new Error(`${id} is missing from the test database`);
   return request;

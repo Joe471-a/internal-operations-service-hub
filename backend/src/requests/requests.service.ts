@@ -38,7 +38,7 @@ type RequestWithHistory = Prisma.ServiceRequestGetPayload<{ include: { history: 
 /**
  * The operations on requests.
  *
- * Storage is Prisma / SQLite (decisions/ADR-003.md). The lifecycle rules
+ * Storage is Prisma / PostgreSQL (docs/decisions/ADR-003.md). The lifecycle rules
  * live in requests.rules.ts (is this transition legal at all) and who-may-
  * ask lives in actors.ts (is this actor allowed to ask) - this file only
  * calls both, in that order, and translates the result into an HTTP
