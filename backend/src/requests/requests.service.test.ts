@@ -1,4 +1,4 @@
-import { BadRequestException, ForbiddenException, UnauthorizedException } from '@nestjs/common';
+import { BadRequestException, ConflictException, ForbiddenException, UnauthorizedException } from '@nestjs/common';
 import { describe, expect, it } from 'vitest';
 import { AiClassificationService } from '../ai-classification/ai-classification.service';
 import { PrismaService } from '../prisma.service';
@@ -18,27 +18,50 @@ import { RequestsService } from './requests.service';
  * denial test below also asks "and did you leave the fake database alone?"
  */
 
-/** A database that hands back one request and records any attempt to write. */
-function fakePrisma(request: Record<string, unknown> | null) {
+/**
+ * A database that hands back one request and records any attempt to write.
+ *
+ * `changedMeanwhile` simulates someone else moving the request between the
+ * service's read and its write: the read still sees the old status, but the
+ * conditional write then finds nothing left to update.
+ */
+function fakePrisma(request: Record<string, unknown> | null, { changedMeanwhile = false } = {}) {
   const updates: unknown[] = [];
   const creates: unknown[] = [];
-  return {
+  const events: unknown[] = [];
+  let stored = request;
+  const fake = {
     updates,
     creates,
+    events,
+    // An interactive transaction just runs the callback against the same fake.
+    $transaction: async (work: (tx: unknown) => Promise<unknown>, _options?: unknown) => work(fake),
     serviceRequest: {
-      findUnique: async () => (request ? { history: [], ...request } : null),
-      update: async (args: { data: Record<string, unknown> }) => {
+      findUnique: async () => (stored ? { history: [], ...stored } : null),
+      findUniqueOrThrow: async () => ({ ...stored, history: [] }),
+      updateMany: async (args: { where: Record<string, unknown>; data: Record<string, unknown> }) => {
+        if (changedMeanwhile || stored?.currentStatus !== args.where.currentStatus) {
+          return { count: 0 };
+        }
         updates.push(args);
-        return { ...request, ...args.data, history: [] };
+        stored = { ...stored, ...args.data };
+        return { count: 1 };
       },
       create: async (args: { data: Record<string, unknown> }) => {
         creates.push(args);
         // args.data.history is Prisma's nested-create input shape, not a
-        // real history array - override it after the spread, same as update().
+        // real history array - override it after the spread.
         return { ...args.data, history: [] };
       },
     },
+    requestEvent: {
+      create: async (args: { data: Record<string, unknown> }) => {
+        events.push(args);
+        return args.data;
+      },
+    },
   };
+  return fake;
 }
 
 /** REQ-1001 as the hub knows it: an IT request, freshly submitted. */
@@ -120,8 +143,8 @@ function fakeUsers() {
 }
 
 /** Builds a real RequestsService wired to the fake Prisma above. */
-function buildService(request: Record<string, unknown> | null) {
-  const prisma = fakePrisma(request);
+function buildService(request: Record<string, unknown> | null, options?: { changedMeanwhile?: boolean }) {
+  const prisma = fakePrisma(request, options);
   const service = new RequestsService(
     prisma as unknown as PrismaService,
     fakeAiClassification() as unknown as AiClassificationService,
@@ -200,6 +223,28 @@ describe('who may assign or deny a request', () => {
 
     expect(prisma.updates).toHaveLength(1);
     expect(prisma.updates[0]).toMatchObject({ data: { currentStatus: 'DENIED' } });
+  });
+});
+
+describe('two people acting on the same request at once', () => {
+  it('only writes if the status is still the one that was checked', async () => {
+    const { service, prisma } = buildService(IT_SUBMITTED_REQUEST);
+
+    await service.transition('REQ-1001', 'ASSIGNED', 'it-lead-001');
+
+    expect(prisma.updates[0]).toMatchObject({ where: { id: 'REQ-1001', currentStatus: 'SUBMITTED' } });
+    expect(prisma.events).toHaveLength(1);
+  });
+
+  it('refuses with 409, and adds no history, when someone else changed it in between', async () => {
+    const { service, prisma } = buildService(IT_SUBMITTED_REQUEST, { changedMeanwhile: true });
+
+    await expect(
+      service.transition('REQ-1001', 'ASSIGNED', 'it-lead-001'),
+    ).rejects.toBeInstanceOf(ConflictException);
+
+    expect(prisma.updates).toEqual([]);
+    expect(prisma.events).toEqual([]);
   });
 });
 

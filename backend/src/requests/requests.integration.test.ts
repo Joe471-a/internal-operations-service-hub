@@ -127,6 +127,40 @@ describe('assigning a request, for real', () => {
 });
 
 /**
+ * Two people acting on the same request at the same moment, for real - both
+ * calls are in flight together against the real database, so both read the
+ * same old status before either one writes.
+ */
+describe('two actions at once, for real', () => {
+  it('lets exactly one of two simultaneous assigns through (a double-click)', async () => {
+    const results = await Promise.allSettled([
+      service.transition('REQ-1001', 'ASSIGNED', 'it-lead-001'),
+      service.transition('REQ-1001', 'ASSIGNED', 'it-lead-001'),
+    ]);
+
+    expect(results.filter((r) => r.status === 'fulfilled')).toHaveLength(1);
+    const refused = results.find((r) => r.status === 'rejected') as PromiseRejectedResult;
+    expect(refused.reason).toMatchObject({ status: 409 });
+
+    const after = await readBack('REQ-1001');
+    expect(after.history.map((event) => event.status)).toEqual(['SUBMITTED', 'ASSIGNED']);
+  });
+
+  it('never leaves a request both assigned and denied when Assign and Deny race', async () => {
+    const results = await Promise.allSettled([
+      service.transition('REQ-1001', 'ASSIGNED', 'it-lead-001'),
+      service.transition('REQ-1001', 'DENIED', 'it-lead-001'),
+    ]);
+
+    expect(results.filter((r) => r.status === 'fulfilled')).toHaveLength(1);
+
+    const after = await readBack('REQ-1001');
+    expect(after.history).toHaveLength(2);
+    expect(after.history[1].status).toBe(after.currentStatus);
+  });
+});
+
+/**
  * Regression protection.
  *
  * These are the exact claims backend/verify.mjs made about the Week 2

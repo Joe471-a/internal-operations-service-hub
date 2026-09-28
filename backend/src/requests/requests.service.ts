@@ -236,6 +236,7 @@ export class RequestsService {
    *  - not a real status           -> 400 Bad Request
    *  - actor not allowed to ask    -> 403 Forbidden (nothing is written)
    *  - illegal transition          -> 409 Conflict (terminal state or undefined transition)
+   *  - changed by someone else     -> 409 Conflict (between our read and our write)
    */
   async transition(id: string, to: unknown, actorId: string | undefined): Promise<RequestResult> {
     const actor = await this.requireActor(actorId);
@@ -259,15 +260,35 @@ export class RequestsService {
       throw new ConflictException(check.message);
     }
 
+    // Everything above was decided from the status we read. Two people acting
+    // at once (a double-click, Assign and Deny together) can both pass those
+    // checks on the same old status - so the write only happens if the
+    // status is *still* the one we checked. The database settles who was
+    // first: the second finds nothing to update and gets a 409, instead of
+    // both writing and leaving a history the lifecycle does not allow.
+    // The status change and its history row succeed or fail together.
     const now = new Date().toISOString();
-    const updated = await this.prisma.serviceRequest.update({
-      where: { id },
-      data: {
-        currentStatus: to,
-        lastUpdated: now,
-        history: { create: { status: to, occurredAt: now, actorId: actor.id } },
-      },
-      include: { history: true },
+    const updated = await this.prisma.$transaction(async (tx) => {
+      const { count } = await tx.serviceRequest.updateMany({
+        where: { id, currentStatus: request.currentStatus },
+        data: { currentStatus: to, lastUpdated: now },
+      });
+      if (count === 0) {
+        throw new ConflictException(
+          `Request "${id}" was just changed by someone else. Refresh to see its current status.`,
+        );
+      }
+
+      await tx.requestEvent.create({
+        data: { requestId: id, status: to, occurredAt: now, actorId: actor.id },
+      });
+      return tx.serviceRequest.findUniqueOrThrow({ where: { id }, include: { history: true } });
+    }, {
+      // Prisma's default 2s to *start* a transaction is too tight when two
+      // arrive together and the second needs a fresh database connection -
+      // it failed that way under a real simultaneous double-click.
+      maxWait: 5000,
+      timeout: 10000,
     });
     return this.toResult(updated);
   }
