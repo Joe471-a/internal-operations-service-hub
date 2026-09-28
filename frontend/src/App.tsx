@@ -212,6 +212,7 @@ export default function App() {
                 onToggleHistory={handleToggleHistory}
                 onTransition={handleTransition}
                 actorId={session.actorId}
+                separateClosed={session.role !== 'employee'}
               />
             </>
           ) : (
