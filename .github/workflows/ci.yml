@@ -1,0 +1,87 @@
+# The release gate: every push to main (and every pull request) runs every
+# automated check on a fresh machine. Render is set to deploy only after
+# these checks pass, so a red run never reaches the live app.
+#
+# Not in the gate on purpose: the AI evals (npm run eval:classification).
+# They call the real Groq model, whose answers can vary between runs, so they
+# would make the gate fail at random - they stay a manual check.
+
+name: Release gate
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  checks:
+    name: Build, tests and E2E
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    # A throwaway PostgreSQL 16 - the same version as docker-compose.yml and
+    # Render - created for this run and deleted after it.
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: hub
+          POSTGRES_PASSWORD: hub
+          POSTGRES_DB: hub
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U hub"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    # Test-only values: this database and this secret exist only inside this
+    # run. No GROQ_API_KEY on purpose - the app must work without the AI
+    # (fail-open), and the gate proves it.
+    env:
+      DATABASE_URL: postgresql://hub:hub@127.0.0.1:5432/hub
+      AUTH_JWT_SECRET: ci-only-secret-not-used-anywhere-else
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install (exact versions from package-lock.json)
+        run: npm ci
+
+      - name: Typecheck backend and frontend
+        run: |
+          npx tsc -p backend/tsconfig.json --noEmit
+          npx tsc -p frontend/tsconfig.json --noEmit
+
+      - name: Build backend and frontend
+        run: |
+          npm run build --workspace backend
+          npm run build --workspace frontend
+
+      - name: Unit, integration and regression tests
+        run: npm test
+
+      - name: Prepare the database for the end-to-end test
+        run: npm run db:setup --workspace backend
+
+      - name: Install the browser for the end-to-end test
+        run: npx playwright install --with-deps chromium
+
+      - name: End-to-end test in a real browser
+        run: npm run test:e2e
+
+      - name: Keep the Playwright report if the end-to-end test failed
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 7
