@@ -1,0 +1,78 @@
+# The AI evals: 17 cases against the REAL Groq model, checking that it still
+# classifies requests the way the product expects (docs/week4-production-ai.md).
+#
+# They can WARN, but never BLOCK a release. The AI is an optional feature -
+# the hub fails open and keeps working without it - so it must never be the
+# reason a deploy is stopped. A real model's answers can also vary between
+# runs, which would make a blocking check fail at random. So on a push, when
+# the evals fail (or the key is missing), this job still finishes green -
+# which is what Render waits for - and raises a visible warning instead. The
+# nightly and on-demand runs do go red on failure, so GitHub emails it: no
+# deploy ever waits on those. The release gate itself is ci.yml.
+#
+# Runs on every push to main, every night (to catch the model drifting while
+# nothing is being pushed), and on demand from the Actions tab.
+# Needs the GROQ_API_KEY repository secret.
+
+name: AI evals
+
+on:
+  push:
+    branches: [main]
+  schedule:
+    - cron: '0 3 * * *' # every day at 03:00 UTC
+  workflow_dispatch:
+
+jobs:
+  evals:
+    name: Real-model classification evals (warn only)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Check the Groq key is configured
+        id: key
+        env:
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+        run: |
+          if [ -z "$GROQ_API_KEY" ]; then
+            echo "::warning::AI evals skipped - add the GROQ_API_KEY secret (Settings > Secrets and variables > Actions)."
+            echo "present=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "present=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/checkout@v4
+        if: steps.key.outputs.present == 'true'
+
+      - uses: actions/setup-node@v4
+        if: steps.key.outputs.present == 'true'
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install (exact versions from package-lock.json)
+        if: steps.key.outputs.present == 'true'
+        run: npm ci
+
+      - name: Run the evals against the real model
+        id: evals
+        if: steps.key.outputs.present == 'true'
+        continue-on-error: true
+        env:
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+        run: npm run eval:classification
+
+      - name: Warn if the real model no longer behaves as expected
+        if: steps.evals.outcome == 'failure'
+        run: |
+          echo "::warning::AI evals failed - the real model may have drifted. Open the step above to see which cases. Releases are not blocked: the hub works without the AI (fail-open)."
+          echo "### ⚠️ AI evals failed - releases were not blocked" >> "$GITHUB_STEP_SUMMARY"
+          echo "Open the 'Run the evals against the real model' step to see which cases failed." >> "$GITHUB_STEP_SUMMARY"
+
+      # On a push, the job stays green so Render is never held up. On the
+      # nightly or on-demand run no deploy is waiting on it, so it goes red -
+      # which is what makes GitHub email the failure.
+      - name: Mark the nightly or on-demand run as failed, to send the email
+        if: steps.evals.outcome == 'failure' && github.event_name != 'push'
+        run: exit 1
