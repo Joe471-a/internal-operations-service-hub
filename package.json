@@ -21,7 +21,8 @@
     "test:all": "npm test && npm run test:e2e && npm run eval:classification",
     "test:health": "vitest run backend/src/health",
     "health": "node scripts/health.js",
-    "monitor": "node scripts/monitor.js"
+    "monitor": "node scripts/monitor.js",
+    "smoke": "node scripts/smoke.js"
   },
   "devDependencies": {
     "@playwright/test": "1.62.1",
