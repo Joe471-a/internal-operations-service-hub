@@ -320,7 +320,7 @@ export class RequestsService {
           ? 'request:deny'
           : 'request:handle';
 
-    if (!can(actor, permission) || !inSameDepartment(actor, department)) {
+    if (!can(actor, permission)) {
       throw new ForbiddenException(
         `${actor.displayName} may not move a ${department} request to "${to}".`,
       );
