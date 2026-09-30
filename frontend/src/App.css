@@ -95,6 +95,13 @@
   box-sizing: border-box;
 }
 
+/* Edge adds its own show-password eye to password fields - the login form
+   already has one, so the browser's is hidden to avoid showing two. */
+input::-ms-reveal,
+input::-ms-clear {
+  display: none;
+}
+
 body {
   margin: 0;
   background: radial-gradient(1200px circle at 8% -10%, var(--page-wash) 0%, var(--color-bg) 45%);
