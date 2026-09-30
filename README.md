@@ -48,7 +48,8 @@ accounts are public on purpose, with fake data:
 | `tarek` | `tarek123` | Tarek Sleiman | Finance Staff |
 | `layla` | `layla123` | Layla Haddad | Finance Lead |
 
-Use **Log out** in the top bar to switch accounts. Five requests are seeded
+Each browser tab keeps its own sign-in, so two roles can be compared side by side in
+one browser; use **Log out** in the top bar to switch accounts in a tab. Five requests are seeded
 (`REQ-1001` to `REQ-1005`, all Dana's); new ones continue from `REQ-1006`.
 
 ### One critical journey to try
@@ -77,9 +78,8 @@ Use **Log out** in the top bar to switch accounts. Five requests are seeded
 - As **karim**, finished requests (Completed, Denied) sit in their own **Closed**
   section below the open queue; clicking a status card shows a single list of that
   status.
-- Open the app twice (e.g. a normal and a private window) as **dana** and as
-  **karim**. When karim assigns dana's request, dana's list shows it within about 20
-  seconds - no reload needed.
+- Open the app in two tabs, as **dana** and as **karim**. When karim assigns dana's
+  request, dana's list shows it within about 20 seconds - no reload needed.
 
 ---
 

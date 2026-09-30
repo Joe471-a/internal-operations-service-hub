@@ -168,6 +168,12 @@ round while you are acting or reading a History panel. Checked with two people a
 once: dana's screen showed *Assigned* 20 seconds after karim assigned her request,
 with no action on her side.
 
+**One sign-in per tab.** The session is kept per browser tab (`sessionStorage`)
+instead of per browser, so signing in as someone else in another tab never changes
+who the first tab is - before, the second sign-in replaced the first, and the first
+tab's next request quietly ran as the other person. A refresh keeps you signed in; a
+new tab starts signed out.
+
 ## How to verify
 
 ```bash
