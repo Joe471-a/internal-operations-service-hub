@@ -1,6 +1,8 @@
+# Internal Operations Service Hub - Data Model
+
 ## Domain
 
-### important entities
+### Important entities
 #### Employee
 Represents a person using the service hub including the department staff/team who can use this hub to handle and send request.
 
@@ -21,7 +23,7 @@ Represents the organizational team (Department staff) responsible for handling r
 #### Request
 Represents a request submitted through the service hub.
 
-### relationships + cardinality
+### Relationships + cardinality
 ![Relations and cardinality](../images/relationsAndcardinality.png)
 - 1- One Employee can submit many Requests.Each Request is submitted by one Employee.
 - 2- One Department can handle many Requests.Each Request is handled by one Department.
@@ -29,7 +31,7 @@ Represents a request submitted through the service hub.
 
 Department staff ≠ Department 
 Department staff are employees who belong to a department and are authorized to handle requests for that department.
-### ownership
+### Ownership
 - Each request is created by one employee.
 - Each request is assigned to one department for handling.
 - Staff members handle requests as part of their department.
@@ -73,7 +75,7 @@ Although a document database provides more flexibility in how data is structured
 
 Therefore, relational storage is preferred over document storage.
 ### What is durable vs derived
-#### durable data 
+#### Durable data 
 The system needs to permanently store:
 - Employee information
 - Department information
@@ -82,7 +84,7 @@ The system needs to permanently store:
 - Request creation and update information
 
 This data must remain available after the request is submitted and after temporary system failures.
-#### derrived data 
+#### Derived data 
 The system can calculate information from the stored data when needed, such as:
 - Number of requests submitted by an employee
 - Number of requests handled by a department
@@ -90,15 +92,15 @@ The system can calculate information from the stored data when needed, such as:
 
 
 ## Access 
-### important querries/access patterns 
-important queries :
+### Important queries / access patterns 
+Important queries:
 - View an employee's requests 
 - View pending requests for a department	
 - View the current status of a request	
 - View a specific request
 - View request history
 
-accesss patterns
+Access patterns
 - employee_id --> requests  
 Used for the employee's "my requests" list.
 
@@ -115,4 +117,28 @@ Used for a system-wide / admin view (e.g. everything In Progress).
 Used to show a request's full timeline.
 
 ### Indexes only when justified 
--An index will be on department_id (IT, Finance, HR) can improve the retrieval of requests for a specific department especially as the number of requests grows. the database can use the index to go directly toward the relevant records instead of checking the entire table.
+- An index will be on department_id (IT, Finance, HR) can improve the retrieval of requests for a specific department especially as the number of requests grows. the database can use the index to go directly toward the relevant records instead of checking the entire table.
+
+## As built (v1.0)
+
+The design above is the conceptual model. This is how it was implemented
+(`backend/prisma/schema.prisma`, PostgreSQL - see ADR-004).
+
+| Designed (above) | Built |
+|---|---|
+| Employee, Department staff and Department lead | **One `User` table** with a `role` column (`employee`, `staff` or `lead`) and an optional `department`. Staff and lead are an employee plus a role and a department, exactly the "Employee + role" idea above; an employee has no department. The permissions for each role live in code (`actors.ts`), not in the database. |
+| Department | **An enum** (`IT`, `HR`, `FINANCE`) instead of a table - departments never change while the system runs, so a table would add joins without adding anything. |
+| Request | **`ServiceRequest`**: title, description, department, current status, who submitted it, last update, and `aiVerified` (whether the AI check actually ran). Its id is a number assigned by the database in order and shown as `REQ-1006`, so two requests can never share one. |
+| Request history | **`RequestEvent`**: one row per status change - which status, when, and who made it. |
+| Users and passwords | `User` also holds a unique `username` and a bcrypt `passwordHash` - never the plain password. |
+
+**Indexes, as justified by the access patterns:**
+
+| Access pattern | Index |
+|---|---|
+| department + status → requests (the department queues) | `ServiceRequest(department, currentStatus)` |
+| employee → requests ("My Requests") | `ServiceRequest(submittedBy)` |
+| request → history | `RequestEvent(requestId)` |
+| username → user (sign-in) | unique `User(username)` |
+
+

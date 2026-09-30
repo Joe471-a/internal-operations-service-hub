@@ -38,13 +38,13 @@ Action buttons in the table follow the app's existing "always offer, let the bac
 ### API contract changes
 
 `GET /requests`:
-- Now reads `x-hub-actor` (previously ignored by this endpoint). Missing/unknown actor → `401`, same as every other endpoint.
+- Now knows who is asking (previously this endpoint ignored it). At the time that was the `x-hub-actor` header; since the real login below, it is the signed-in user from the session token. No or invalid session → `401`, same as every other endpoint.
 - New optional `?view=mine|handle|assign|all`. Invalid value → `400`.
 - The old `?department=`/`?status=` query parameters are retired from this endpoint - they were actor-unscoped (an unauthenticated way to see any department's queue) and the frontend never used them. The underlying `getQueue()` method (and an equally unused `getAll()`) were later removed from `requests.service.ts` as dead code - nothing called them, and `getQueue` had no actor scoping, so keeping it around risked being re-routed by mistake.
 
 ### Tests
 
-`requests.service.test.ts` gained a `getVisible` suite (fake Prisma, asserts the exact `where` clause built per role/view - employee scoping, staff/lead scoping, each `view` narrowing correctly, the empty-without-a-query result for an employee on `handle`/`assign`, the unknown-actor and invalid-view rejections). Backend suite is now 69 tests (was 60 after v0.4).
+`requests.service.test.ts` gained a `getVisible` suite (fake Prisma, asserts the exact `where` clause built per role/view - employee scoping, staff/lead scoping, each `view` narrowing correctly, the empty-without-a-query result for an employee on `handle`/`assign`, the unknown-actor and invalid-view rejections). The backend suite was 69 tests at that point (60 after v0.4); later work brought it to 120 (see `week5-release-operations.md`).
 
 ## Frontend: component structure
 
@@ -86,7 +86,7 @@ frontend/src/
 
 On top of the corporate-panel look introduced earlier (cards, shadows, hover/focus states), this pass added:
 
-- A stats overview row (`StatsOverview.tsx`) above "Submit a Request" - one card per status, count computed from whatever the signed-in actor can already see.
+- A stats overview row (`StatsOverview.tsx`) above the request list - one card per status, count computed from whatever the signed-in actor can already see. Clicking a card filters the list to that status. (Submitting a request later moved to its own page, opened from **New Request** in the sidebar.)
 - A colored gradient header banner in place of the plain bordered header.
 - Department color-coding (`DepartmentBadge.tsx`) - a distinct color per department (IT/HR/Finance), used consistently in the request table, the history panel, and as an accent on the submit form's department selector.
 - The view-tabs described above, styled as a pill-button group with an active state.
@@ -123,7 +123,7 @@ Not part of the assignment - an extra pass added afterward so the hub behaves li
 - `requests.controller.ts` now gets the actor from that verified token instead of trusting whatever id the browser sent in a header.
 - Frontend: the "Acting as" dropdown is gone. `LoginPage.tsx` is the only way in; `SessionMenu.tsx` (top bar) replaces it with **Change password** / **Log out**. The session token lives in `localStorage` and rides along as `Authorization: Bearer <token>` on every request.
 
-**Test credentials** (seeded by `npm run db:setup`, hashed in the DB - listed here only so this is testable; if a password is changed through the app, this table will *not* reflect that change):
+**Test credentials** (seeded by `npm run db:setup`, hashed in the DB - listed here only so this is testable; if a password is changed through the app, this table will *not* reflect that change). These are public demo accounts with fake data - on the live app anyone can sign in with them, and reseeding the database restores every password (see `week5-release-operations.md`, remaining risks):
 
 | Username | Password | Person |
 |---|---|---|
@@ -134,13 +134,44 @@ Not part of the assignment - an extra pass added afterward so the hub behaves li
 | tarek | tarek123 | Tarek Sleiman — Finance Staff |
 | layla | layla123 | Layla Haddad — Finance Lead |
 
+## Changes during Week 5
+
+Product changes made while preparing the release - each small, each with a reason.
+
+**Request numbers.** Requests used to get a random id (`REQ-5ef6b338`). They are now
+numbered by the database itself - PostgreSQL's auto-increment hands out the next
+number on every insert - and shown as `REQ-1006`, `REQ-1007`, ... after the seeded
+`REQ-1001`-`REQ-1005`. Because the database assigns the number, two requests
+submitted at the same moment can never get the same id (a test submits ten at once
+and checks for ten different ids). The API uses the plain number (`/requests/1006`);
+anything else in the URL is refused with `400`.
+
+**Closed requests in their own section.** For staff and leads, Completed and Denied
+requests - where nobody can act any more - move to a *Closed* section below the open
+queue, so the queue only holds work that still needs someone. Clicking a status card
+still shows a single list of that status. An employee's list stays one list.
+
+**Length limits.** A title can be at most 120 characters and a description 2,000,
+refused with `400` before the AI is asked - so what reaches the model stays bounded.
+The form stops at the same limits while typing.
+
+**Two people acting at once.** If two actions on the same request arrive together
+(a double-click, or a staff member and a lead both pressing *Start*), only the first
+is applied; the second gets `409` asking to refresh. The update only happens if the
+request is still in the status that was checked, and a test fires both at once
+against the real database to prove it.
+
 ## How to verify
 
 ```bash
 npm install
-npm run db:setup --workspace backend
-npm run dev              # backend :3000, frontend :5173
-npm test                  # 76 backend tests
+docker compose up -d                     # local PostgreSQL (see docker-compose.yml)
+cp backend/.env.example backend/.env     # then fill in the values - see README.md
+npm run db:setup --workspace backend     # tables + the six demo accounts and five requests
+npm run dev                              # backend :3000, frontend :5173
+npm test                                 # 120 backend tests
 ```
+
+Or skip the setup and use the live app: <https://hub-frontend-xtup.onrender.com> (same accounts).
 
 Manually, log in as each account above (credentials table). As Dana (employee) - only her own requests, no filter tabs, no Actions column (nothing to act on your own request). Log out, log in as Yara or Karim (IT) - now also IT department requests, with My Requests / All / To Handle tabs (plus Awaiting Assign/Deny for Karim). The status dashboard shows on My Requests and All, and is hidden on To Handle and Awaiting Assign/Deny, where the list is already a single slice of statuses, and an Actions column on requests submitted by someone else. Log in as Sami or Layla (HR/Finance) and confirm IT-only requests never appear at all, not just hidden from view.

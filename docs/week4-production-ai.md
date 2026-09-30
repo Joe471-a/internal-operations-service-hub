@@ -4,8 +4,13 @@
 > afterwards ([extra.md](extra.md)), which changes a few surrounding details:
 > the person submitting is identified by a signed session token rather than
 > an actor header, their role and department come from the `User` table, and
-> `npm test` now runs 76 tests rather than the 60 counted below. The AI
-> intake logic itself (the flow, Rule A, Rule B, fail-open) is unchanged.
+> `npm test` ran 76 tests after login (120 after Week 5) rather than the 60
+> counted below. The AI intake logic itself (the flow, Rule A, Rule B,
+> fail-open) is unchanged.
+>
+> Since Week 5 the database is PostgreSQL (run locally with Docker) - see
+> [ADR-004](decisions/ADR-004.md). The AI evals now also run in CI (warn-only) -
+> see [week5-release-operations.md](week5-release-operations.md).
 
 One AI-assisted capability added to the existing request flow: when an
 employee submits a request, its free text is classified by a real language

@@ -10,6 +10,11 @@
 > document and extra.md disagree, extra.md is current. The test count here
 > (28) is as of v0.3; it grew in later versions - 60 with the v0.4 AI work,
 > 76 after login.
+>
+> Since Week 5 the database is PostgreSQL instead of the SQLite file described
+> below (run locally with Docker), request ids are sequential numbers shown as
+> `REQ-1006`, and the suite is 120 tests - see [ADR-004](decisions/ADR-004.md) and
+> [extra.md](extra.md). The setup steps below describe v0.3 as it was built.
 
 One narrow, user-facing Service Request flow, end to end: React frontend,
 NestJS backend, real Prisma/SQLite persistence, behind the explicit API
