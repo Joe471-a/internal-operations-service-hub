@@ -5,7 +5,7 @@ to prove that each one is **detected**, **explained**, **fixed** and followed by
 **working critical path**. All times are Beirut time (UTC+3); Render's own log
 timestamps are UTC.
 
-Live app: <https://hub-frontend-xtup.onrender.com> · backend <https://hub-backend-5u3t.onrender.com>
+Live app: <https://hub-frontend-xtup.onrender.com> · backend health <https://hub-backend-5u3t.onrender.com/health>
 · release under test: `9febf26`
 
 ## The tools used

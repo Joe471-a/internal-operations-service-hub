@@ -97,7 +97,17 @@ one browser; use **Log out** in the top bar to switch accounts in a tab. Five re
 | Docker Desktop | any recent version - runs the local PostgreSQL | `docker --version` |
 | A Groq account | free - for the AI check | <https://console.groq.com/keys> |
 
-### 1. Install
+### 1. Get the project
+
+```bash
+git clone https://github.com/Joe471-a/internal-operations-service-hub.git
+cd internal-operations-service-hub
+```
+
+Then open the folder in your code editor (VS Code, Cursor, WebStorm - any is fine).
+All the commands below run from this folder (the project root).
+
+### 2. Install
 
 From the project root:
 
@@ -107,7 +117,7 @@ npm install
 
 This installs both workspaces (`backend`, `frontend`) and generates the Prisma client.
 
-### 2. Configure
+### 3. Configure
 
 ```bash
 cp backend/.env.example backend/.env
@@ -125,7 +135,7 @@ Skip this if `backend/.env` already exists - it would overwrite your values. The
 `backend/.env` is ignored by Git - never commit a real key. The frontend needs no
 configuration locally (it defaults to the backend on `localhost:3000`).
 
-### 3. Database
+### 4. Database
 
 ```bash
 docker compose up -d                    # PostgreSQL 16, reachable only from this machine
@@ -137,7 +147,7 @@ npm run db:setup --workspace backend    # creates the tables and seeds the demo 
 the requests and passwords, not the table structure). `docker compose down` stops the
 database; your data stays in a Docker volume.
 
-### 4. Run
+### 5. Run
 
 ```bash
 npm run dev
@@ -146,7 +156,7 @@ npm run dev
 Starts the **backend** on <http://localhost:3000> and the **frontend** on
 <http://localhost:5173>. Stop with **Ctrl + C**.
 
-### 5. Test
+### 6. Test
 
 Once per machine, before the first end-to-end run:
 
@@ -169,7 +179,7 @@ npm run test:all             # all three, in order
 - The evals call the real model, so they check that it still behaves the way the
   product expects - a model can drift even when the code has not changed.
 
-### 6. The release gate
+### 7. The release gate
 
 Every push to `main` runs [`ci.yml`](.github/workflows/ci.yml) on a fresh machine:
 typecheck, build, the 120 tests and the end-to-end test, against its own PostgreSQL.

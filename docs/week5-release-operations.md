@@ -9,7 +9,7 @@ This document describes that release; the failure drills that prove it are in
 | | |
 |---|---|
 | Live app | <https://hub-frontend-xtup.onrender.com> |
-| Backend | <https://hub-backend-5u3t.onrender.com> · health at `/health` |
+| Backend | <https://hub-backend-5u3t.onrender.com/health> (the API itself has no page at its root) |
 | Released as | tag `v1.0` (the exact commit is also reported live by `/health` as `release`) |
 
 ## 1. Remote target
@@ -159,7 +159,78 @@ npm run smoke -- https://hub-backend-5u3t.onrender.com
 It is the check that catches what health cannot: in drill 2b the app ran against an
 empty database while `/health` said `ok`, and only signing in revealed it.
 
-**Release decision for v1.0:** <!-- filled in at release time: date, commit, smoke output, GO -->
+### Release decision for v1.0 - **GO**
+
+Checked on 30 September 2026, against the live app running release `ef89750`
+(the code of the tagged release; the final commit only adds this record and small
+documentation fixes).
+
+**Final smoke test** (06:44, Beirut time):
+
+```
+PASS  health is ok or degraded  (status=ok database=up ai=up release=ef89750)
+PASS  a wrong password is refused
+PASS  dana signs in
+PASS  dana submits an IT request  (REQ-1008, AI-checked)
+PASS  sami (HR lead) cannot assign an IT request
+PASS  karim (IT lead) assigns it  (ASSIGNED)
+PASS  dana sees it assigned - the change was saved  (SUBMITTED > ASSIGNED)
+
+SMOKE PASSED - GO
+```
+
+The first smoke run of the release was **NO-GO**: dana could not sign in, because
+her demo password had been changed through the app. The documented recovery was
+applied - the database was reseeded, restoring every demo password - and the smoke
+test then passed. It is the remaining risk "demo accounts are public" happening for
+real, caught before release by the check built to catch it.
+
+**How the data is reseeded.** The same seed script
+(`npm run db:seed --workspace backend`) resets the six demo accounts - passwords
+included - and the five example requests (`REQ-1001`-`REQ-1005`, next `REQ-1006`).
+Only the database it points at changes:
+
+- **Locally** (the PostgreSQL in Docker), from the project root:
+
+  ```bash
+  npm run db:seed --workspace backend
+  ```
+
+  It uses `DATABASE_URL` from `backend/.env`. `npm run db:setup --workspace backend`
+  also creates the tables first (a fresh machine), and `docker compose down -v`
+  followed by `docker compose up -d` and `db:setup` rebuilds everything from zero.
+
+- **On the web** (the live database on Render), from a laptop, pointing the same
+  command at the database's *External* URL for this terminal only:
+
+  ```powershell
+  $env:DATABASE_URL = "<External Database URL from Render → hub-db → Connect>"
+  npm run db:seed --workspace backend
+  Remove-Item Env:DATABASE_URL
+  ```
+
+  The last line makes the terminal forget the live database, so later commands go
+  back to the local one.
+
+**Pre-release checks - the three-stranger test:**
+
+- **Stranger user** - with only the live URL and the demo accounts, through the UI:
+  all six accounts sign in and each sees exactly the requests their role allows; the
+  main flow works end to end (submit → the HR lead cannot see it → the IT lead
+  assigns, starts and completes it → the employee sees it completed); the AI refuses
+  a request filed to the wrong department; two tabs stay separate and the list
+  refreshes itself. 16/16.
+- **Stranger engineer** - a fresh clone following only the README: install,
+  configure, database, run, 120/120 tests, the end-to-end test, 17/17 AI evals, and a
+  smoke test GO on the local copy - every step worked as written. The release gate
+  was green for the release commit.
+- **Operator** - `/health` names the exact running release and matches the pushed
+  commit; health, monitor and smoke are green; all 66 relative links in the README
+  and the docs resolve; no secret appears in the repository or its history.
+
+**Decision: GO.** After this record, the live database is reseeded once more so the
+app starts from the clean demo data (`REQ-1001`-`REQ-1005`, next `REQ-1006`), and the
+release is tagged `v1.0`.
 
 ## 7. Remaining risks
 
