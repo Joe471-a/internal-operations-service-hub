@@ -77,6 +77,9 @@ Use **Log out** in the top bar to switch accounts. Five requests are seeded
 - As **karim**, finished requests (Completed, Denied) sit in their own **Closed**
   section below the open queue; clicking a status card shows a single list of that
   status.
+- Open the app twice (e.g. a normal and a private window) as **dana** and as
+  **karim**. When karim assigns dana's request, dana's list shows it within about 20
+  seconds - no reload needed.
 
 ---
 

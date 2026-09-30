@@ -15,6 +15,13 @@ export const STATUSES = [
 export const DEPARTMENTS: Department[] = ['IT', 'HR', 'FINANCE'];
 
 /**
+ * How often the request list reloads itself while it is on screen, so other
+ * people's changes appear without any action. Requests take hours to handle,
+ * so 20 seconds is more than fresh enough while keeping the backend quiet.
+ */
+export const POLL_INTERVAL_MS = 20_000;
+
+/**
  * The same limits the backend enforces (backend/src/requests/requests.data.ts),
  * so the form stops at them instead of letting someone type a request the
  * hub will refuse. The backend stays the one that actually enforces them.

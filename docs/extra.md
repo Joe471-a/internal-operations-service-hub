@@ -161,6 +161,13 @@ is applied; the second gets `409` asking to refresh. The update only happens if 
 request is still in the status that was checked, and a test fires both at once
 against the real database to prove it.
 
+**Live refresh.** The request list reloads itself every 20 seconds while it is on
+screen, so a status changed by someone else - a lead assigning your request - appears
+without clicking or reloading. It pauses while the browser tab is hidden and skips a
+round while you are acting or reading a History panel. Checked with two people at
+once: dana's screen showed *Assigned* 20 seconds after karim assigned her request,
+with no action on her side.
+
 ## How to verify
 
 ```bash

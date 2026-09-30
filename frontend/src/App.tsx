@@ -16,7 +16,7 @@ import { StatsOverview } from './components/StatsOverview';
 import { SubmitPage } from './components/SubmitPage';
 import { Toast } from './components/Toast';
 import { TopBar } from './components/TopBar';
-import { getViewLabel, VIEWS_WITH_STATS } from './lib/constants';
+import { getViewLabel, POLL_INTERVAL_MS, VIEWS_WITH_STATS } from './lib/constants';
 import { formatRequestKey } from './lib/format';
 import { clearSession, getSession, setSession as persistSession, Session } from './lib/session';
 import { applyTheme, getInitialTheme, Theme } from './lib/theme';
@@ -65,6 +65,43 @@ export default function App() {
     load(view);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session, view]);
+
+  /**
+   * Polling: while the list is on screen, reload it quietly every
+   * POLL_INTERVAL_MS so other people's changes show up without any action
+   * (docs/decisions/ADR-002.md). Quietly means no "Loading..." and no error
+   * banner - a failed reload just waits for the next one. It skips a round
+   * while an action is running or a History panel is open, pauses while the
+   * browser tab is hidden, and refreshes at once when the tab comes back.
+   */
+  useEffect(() => {
+    if (!session || page !== 'home') return;
+    let active = true;
+
+    async function refreshQuietly() {
+      if (document.hidden || busy || historyView) return;
+      try {
+        const latest = await fetchVisible(view);
+        // A reload that finishes after the user switched view or left must
+        // not overwrite what is now on screen.
+        if (active) setRequests(latest);
+      } catch {
+        syncSessionFromStorage();
+      }
+    }
+
+    const timer = setInterval(refreshQuietly, POLL_INTERVAL_MS);
+    const onVisibilityChange = () => {
+      if (!document.hidden) void refreshQuietly();
+    };
+    document.addEventListener('visibilitychange', onVisibilityChange);
+    return () => {
+      active = false;
+      clearInterval(timer);
+      document.removeEventListener('visibilitychange', onVisibilityChange);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [session, page, view, busy, historyView]);
 
   useEffect(() => {
     applyTheme(theme);
