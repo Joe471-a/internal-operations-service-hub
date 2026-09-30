@@ -9,6 +9,9 @@ department staff and leads handle the requests of their own department.
 
 **Current version: v1.0** - deployed, monitored and released through an automated gate.
 
+**Submitted release:** Git tag [`v1.0`](https://github.com/Joe471-a/internal-operations-service-hub/releases/tag/v1.0) -
+the exact commit graded; `GET /health` reports the same commit as `release`.
+
 | | |
 |---|---|
 | **Live app** | <https://hub-frontend-xtup.onrender.com> |

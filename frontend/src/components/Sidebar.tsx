@@ -41,7 +41,7 @@ export function Sidebar({ role, view, onViewChange, onNewRequest }: SidebarProps
         ))}
       </nav>
 
-      <p className="sidebar-footer">Internal Operations Service Hub · v0.4</p>
+      <p className="sidebar-footer">Internal Operations Service Hub · v1.0</p>
     </aside>
   );
 }
